@@ -1,0 +1,11 @@
+==== Raw Episodic Return ====
+Episode 0: 47.9475
+Episode 1: 42.0723
+Episode 2: 40.8613
+Episode 3: 45.7899
+Episode 4: 52.0960
+
+
+==== Moving Average of Reward (Window size = 25) ====
+==================================================
+Window 1 (Episode 0~4): Average = 45.7534
