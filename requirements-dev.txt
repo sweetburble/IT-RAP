@@ -1,4 +1,4 @@
-# Core ML framework (CPU-only build)
+# Core ML framework (GPU build)
 torch==2.2.2+cu121
 torchvision==0.17.2+cu121
 
