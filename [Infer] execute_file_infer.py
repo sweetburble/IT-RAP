@@ -18,7 +18,7 @@ for i in range(1, num_runs + 1):
     output_file = f"rainbow_inference_{i}.txt"
     print(f"Running inference iteration {i} and saving output to {output_file}...")
 
-    with open(output_file, "w") as f:
+    with open(output_file, "w", encoding='utf-8') as f:
         process = subprocess.Popen(
             [
                 # CelebA dataset
@@ -37,7 +37,7 @@ for i in range(1, num_runs + 1):
 
 
                 # MAAD-Face dataset
-                "python", "attgan_main.py",
+                "python", "stargan_main.py",
                 "--mode", "inference",
                 "--dataset", "MAADFace",
                 "--image_size", "256",

@@ -319,13 +319,19 @@ class SolverRainbow(object):
 
     def inference_rainbow_dqn(self, data_loader, result_dir, start_idx=0):
         os.makedirs(result_dir, exist_ok=True)
-        self.attack_func = attgan_attacks.AttackFunction(config=self.config, model=self.G, device=self.device)
+        self.attack_func = attgan_attacks.AttackFunction(config=self.config, model=attgan_model.G, device=self.device)
         self.rl_agent.dqn.eval()
-        
-        total_perturbation_map = np.zeros((256, 256)) # Initialize NumPy array to accumulate perturbation values
-        total_remain_map = np.zeros((256, 256)) # Initialize NumPy array to accumulate remaining perturbation values after image transformation
 
-        # Initialize a dictionary to store results for each image transformation method
+        # AttGAN의 13개 전체 속성 리스트 (train_attack와 동일)
+        self.attgan_attrs = [
+            'Bald', 'Bangs', 'Black_Hair', 'Blond_Hair', 'Brown_Hair', 'Bushy_Eyebrows',
+            'Eyeglasses', 'Male', 'Mouth_Slightly_Open', 'Mustache', 'No_Beard', 'Pale_Skin', 'Young'
+        ]
+        
+        total_perturbation_map = np.zeros((256, 256))
+        total_remain_map = np.zeros((256, 256))
+
+        # 결과 저장을 위한 딕셔너리 (기존 구조 유지)
         results = {
             "원본(변형없음)": {"l1_error": 0.0, "l2_error": 0.0, "defense_psnr": 0.0, 
                         "defense_ssim": 0.0, "defense_lpips": 0.0, "attack_success": 0, "total_remain_map": np.zeros((256, 256))},
@@ -342,38 +348,29 @@ class SolverRainbow(object):
         }
         total_invisible_psnr, total_invisible_ssim, total_invisible_lpips = 0.0, 0.0, 0.0
         
-        # The 'episode' variable below represents the number of inferences (episode itself cannot be defined in inference).
         episode = 0
-        frame_idx = 0 # frame_idx for beta annealing (PER)
 
-        # Add variables for recording and visualizing action selections
+        # 액션 선택 기록 및 시각화를 위한 변수
         action_history = []
         image_indices = []
         attr_indices = []
         step_indices = []
 
-
-        # Initialize time measurement variables
+        # 시간 측정 변수 초기화
         total_core_time = 0.0
         total_processing_time = 0.0
-        episode = 0
         
         for infer_img_idx, (x_real, c_org, filename) in enumerate(data_loader):
-            if infer_img_idx < start_idx:   # (Pass until start_idx)
+            if infer_img_idx < start_idx:
                 continue
 
-            # Start measuring total processing time
             total_start_time = time.time()
-            
-            # Accumulator for core processing time per image
             image_core_time = 0.0
 
-
-
             x_real = x_real.to(self.device)
-            # x_fake_list = [x_real]
+            c_org = c_org.to(self.device) # c_org도 device로 이동
 
-            # Lists to save the final results as images
+            # 최종 결과를 이미지로 저장하기 위한 리스트
             noattack_result_list = [x_real]
             jpeg_result_list = [x_real]
             opencv_result_list = [x_real]
@@ -381,17 +378,31 @@ class SolverRainbow(object):
             padding_result_list = [x_real]
             transforms_result_list = [x_real]
 
-            c_trg_list = self.create_labels(c_org, self.c_dim, self.dataset, self.selected_attrs)
-            for idx, c_trg in enumerate(c_trg_list):
-                c_trg = c_trg.to(self.device)
-                perturbed_image = x_real.clone().detach_() + torch.tensor(np.random.uniform(-0.01, 0.01, x_real.shape).astype('float32')).to(self.device)
+            for idx, attr_name in enumerate(self.selected_attrs):
+                print("=" * 100)
+                print(f"Target Attribute ({idx + 1}/{len(self.selected_attrs)}): {attr_name}")
+
+                # 1. 원본 13차원 속성 벡터를 복사하여 타겟 벡터 생성 준비
+                c_trg = c_org.clone()
+
+                # 2. 현재 타겟 속성의 인덱스를 13개 전체 속성 리스트에서 찾기
+                try:
+                    attr_index = self.attgan_attrs.index(attr_name)
+                except ValueError:
+                    print(f"Warning: '{attr_name}'는 AttGAN의 기본 속성이 아닙니다. 이 속성을 건너뜁니다.")
+                    continue
+
+                # 3. 해당 속성의 값을 반전 (0 -> 1, 1 -> 0)
+                c_trg[:, attr_index] = 1 - c_trg[:, attr_index]
+
+                perturbed_image = x_real.clone().detach_() + torch.tensor(np.random.uniform(-self.noise_level, self.noise_level, x_real.shape).astype('float32')).to(self.device)
+                
                 for step in range(self.max_steps_per_episode):
-                    # Start measuring core processing time
                     core_start_time = time.time()
                     
                     with torch.no_grad():
-                        original_gen_image, _ = self.G(x_real, c_trg)
-                        perturbed_gen_image, _ = self.G(perturbed_image, c_trg)
+                        original_gen_image = attgan_model.G(x_real, c_trg, mode='enc-dec')
+                        perturbed_gen_image = attgan_model.G(perturbed_image, c_trg, mode='enc-dec')
 
                     state = self.get_state(x_real, perturbed_image, original_gen_image, perturbed_gen_image)
                     
@@ -399,7 +410,6 @@ class SolverRainbow(object):
                         action = self.rl_agent.select_action(state).item()
                         print(f"[Inference] Selected action: {action}")
                     
-                    # Add action to history
                     action_history.append(int(action))
                     image_indices.append(infer_img_idx)
                     attr_indices.append(idx)
@@ -411,7 +421,6 @@ class SolverRainbow(object):
                         freq_band = ['LOW', 'MID', 'HIGH'][action - 1]
                         perturbed_image, _ = self.attack_func.perturb_frequency_domain(perturbed_image, original_gen_image, c_trg, freq_band=freq_band)
                     
-                    # After GPU synchronization, stop measuring core processing time
                     if torch.cuda.is_available():
                         torch.cuda.synchronize()
                     core_end_time = time.time()
@@ -419,91 +428,79 @@ class SolverRainbow(object):
                     image_core_time += step_core_time
                     
                     print(f"[Core Processing Time] Step {step + 1} processing time: {step_core_time:.5f}s")
-                    
 
-
-                # Accumulate to determine the average amount of noise inserted into a single image.
                 analyzed_perturbation_array = analyze_perturbation(perturbed_image - x_real)
                 total_perturbation_map += analyzed_perturbation_array
 
-
-                # [Inference 1] No transformation (original)
+                # [추론 1] 변환 없음 (원본)
                 with torch.no_grad():
                     remain_perturb_array = analyze_perturbation(perturbed_image - x_real)
                     results["원본(변형없음)"]["total_remain_map"] += remain_perturb_array
-                    original_gen_image, _ = self.G(x_real, c_trg)
-                    perturbed_gen_image_orig, _ = self.G(perturbed_image, c_trg)
+                    perturbed_gen_image_orig = attgan_model.G(perturbed_image, c_trg, mode='enc-dec')
                     noattack_result_list.append(perturbed_image)
                     noattack_result_list.append(original_gen_image)
                     noattack_result_list.append(perturbed_gen_image_orig)
                     results = calculate_and_save_metrics(original_gen_image, perturbed_gen_image_orig, "원본(변형없음)", results)
 
-
-                # [Inference 2] JPEG compression
+                # [추론 2] JPEG 압축
                 x_adv_jpeg = compress_jpeg(perturbed_image, quality=75)
                 with torch.no_grad():
                     remain_perturb_array = analyze_perturbation(x_adv_jpeg - x_real)
                     results["JPEG압축"]["total_remain_map"] += remain_perturb_array
-                    perturbed_gen_image_jpeg, _ = self.G(x_adv_jpeg, c_trg)
+                    perturbed_gen_image_jpeg = attgan_model.G(x_adv_jpeg, c_trg, mode='enc-dec')
                     jpeg_result_list.append(x_adv_jpeg)
                     jpeg_result_list.append(original_gen_image)
                     jpeg_result_list.append(perturbed_gen_image_jpeg)
                     results = calculate_and_save_metrics(original_gen_image, perturbed_gen_image_jpeg, "JPEG압축", results)
 
-
-                # [Inference 3] OpenCV denoising
+                # [추론 3] OpenCV 디노이징
                 x_adv_denoise_opencv = denoise_opencv(perturbed_image)
                 with torch.no_grad():
                     remain_perturb_array = analyze_perturbation(x_adv_denoise_opencv - x_real)
                     results["OpenCV디노이즈"]["total_remain_map"] += remain_perturb_array
-                    perturbed_gen_image_opencv, _ = self.G(x_adv_denoise_opencv, c_trg)
+                    perturbed_gen_image_opencv = attgan_model.G(x_adv_denoise_opencv, c_trg, mode='enc-dec')
                     opencv_result_list.append(x_adv_denoise_opencv)
                     opencv_result_list.append(original_gen_image)
                     opencv_result_list.append(perturbed_gen_image_opencv)
                     results = calculate_and_save_metrics(original_gen_image, perturbed_gen_image_opencv, "OpenCV디노이즈", results)
 
-
-                # [Inference 4] Median Smoothing
+                # [추론 4] 중간값 스무딩
                 x_adv_median = denoise_scikit(perturbed_image)
                 with torch.no_grad(): 
                     remain_perturb_array = analyze_perturbation(x_adv_median - x_real)
                     results["중간값스무딩"]["total_remain_map"] += remain_perturb_array
-                    perturbed_gen_image_median, _ = self.G(x_adv_median, c_trg)
+                    perturbed_gen_image_median = attgan_model.G(x_adv_median, c_trg, mode='enc-dec')
                     median_result_list.append(x_adv_median)
                     median_result_list.append(original_gen_image)
                     median_result_list.append(perturbed_gen_image_median)
                     results = calculate_and_save_metrics(original_gen_image, perturbed_gen_image_median, "중간값스무딩", results)
 
-
-                # [Inference 5] Random resize and padding
+                # [추론 5] 랜덤 리사이즈 및 패딩
                 x_real_padding, x_adv_padding = random_resize_padding(x_real, perturbed_image)
                 with torch.no_grad():
                     remain_perturb_array = analyze_perturbation(x_adv_padding - x_real_padding)
                     results["크기조정패딩"]["total_remain_map"] += remain_perturb_array
-                    original_gen_image_padding, _ = self.G(x_real_padding, c_trg)
-                    perturbed_gen_image_padding, _ = self.G(x_adv_padding, c_trg)
+                    original_gen_image_padding = attgan_model.G(x_real_padding, c_trg, mode='enc-dec')
+                    perturbed_gen_image_padding = attgan_model.G(x_adv_padding, c_trg, mode='enc-dec')
                     padding_result_list.append(x_adv_padding)
                     padding_result_list.append(original_gen_image_padding)
                     padding_result_list.append(perturbed_gen_image_padding)
                     results = calculate_and_save_metrics(original_gen_image_padding, perturbed_gen_image_padding, "크기조정패딩", results)
 
-
-                # [Inference 6] Random image transformations -> shear, shift, zoom, rotation
+                # [추론 6] 랜덤 이미지 변환
                 x_real_transforms, x_adv_transforms = random_image_transforms(x_real, perturbed_image)
                 with torch.no_grad():
                     remain_perturb_array = analyze_perturbation(x_adv_transforms - x_real_transforms)
                     results["이미지변환"]["total_remain_map"] += remain_perturb_array
-                    original_gen_image_transforms, _ = self.G(x_real_transforms, c_trg)
-                    perturbed_gen_image_transforms, _ = self.G(x_adv_transforms, c_trg)
+                    original_gen_image_transforms = attgan_model.G(x_real_transforms, c_trg, mode='enc-dec')
+                    perturbed_gen_image_transforms = attgan_model.G(x_adv_transforms, c_trg, mode='enc-dec')
                     transforms_result_list.append(x_adv_transforms)
                     transforms_result_list.append(original_gen_image_transforms)
                     transforms_result_list.append(perturbed_gen_image_transforms)
                     results = calculate_and_save_metrics(original_gen_image_transforms, perturbed_gen_image_transforms, "이미지변환", results)
                 
-
                 with torch.no_grad():
-                    # Calculate and accumulate PSNR, SSIM, LPIPS, which represent invisibility
-                    x_real_np = x_real.squeeze(0).permute(1, 2, 0).cpu().numpy() # (C, H, W) -> (H, W, C)
+                    x_real_np = x_real.squeeze(0).permute(1, 2, 0).cpu().numpy()
                     perturbed_image_np = perturbed_image.squeeze(0).permute(1, 2, 0).cpu().numpy()
 
                     invisible_lpips_value = self.lpips_loss(x_real, perturbed_image).mean()
@@ -514,61 +511,43 @@ class SolverRainbow(object):
                     total_invisible_psnr += invisible_psnr_value
                     total_invisible_ssim += invisible_ssim_value
 
-                    episode += 1 # Here, 1 episode = 1 type of "face attribute transformation result" for 1 image
-                    # There's no concept of an episode in inference, but it refers to the sequence number of the executed sample.
+                    episode += 1
                 
-                # Print random resize value (value used in the original code)
-                resize_values = [224, 240, 208]
-                selected_resize = np.random.choice(resize_values)
-                print(f"Resize selected in this step: {selected_resize}")
-
-
-            # Save the result image lists of 5 types of "face attribute transformations" as a single image
             all_result_lists = [noattack_result_list, jpeg_result_list, opencv_result_list, median_result_list, padding_result_list, transforms_result_list]
             row_images = []
             for result_list in all_result_lists:
-                row_concat = torch.cat(result_list, dim=3) # Concatenate images horizontally
+                row_concat = torch.cat(result_list, dim=3)
                 row_images.append(row_concat)
             
-
-            # Create a blank image (white) to add vertical spacing
-            spacing = 10 # Adjust spacing size
-            blank_image = torch.ones_like(row_images[0][:, :, :spacing, :]) # Fill with white, shape is set based on the first row_image
-            blank_image = blank_image * 1.0 # White
-
-            # Add the first row_image without spacing
+            spacing = 10
+            blank_image = torch.ones_like(row_images[0][:, :, :spacing, :]) * 1.0
             vertical_concat_list = [row_images[0]]
-            # Vertically concatenate the remaining row_images with blank images
             for i in range(1, len(row_images)):
-                vertical_concat_list.append(blank_image) # Add spacing
+                vertical_concat_list.append(blank_image)
                 vertical_concat_list.append(row_images[i])
 
-            x_concat = torch.cat(vertical_concat_list, dim=2) # Finally, concatenate the images vertically
+            x_concat = torch.cat(vertical_concat_list, dim=2)
             result_path = os.path.join(result_dir, '{}-images.jpg'.format(infer_img_idx + 1))
             save_image(self.denorm(x_concat.data.cpu()), result_path, nrow=1, padding=0)
             print(f"[Inference] Result saved: {result_path}")
 
-            # Stop measuring total processing time
             if torch.cuda.is_available():
                 torch.cuda.synchronize()
             total_end_time = time.time()
             total_elapsed_time = total_end_time - total_start_time
             
-            # Accumulate time
             total_core_time += image_core_time
             total_processing_time += total_elapsed_time
             
-            # Print time per image
             print(f"[Core Processing Time] Image {infer_img_idx + 1} core processing time: {image_core_time:.5f}s")
             print(f"[Total Processing Time] Image {infer_img_idx + 1} total processing time: {total_elapsed_time:.5f}s (for reference)")
 
-            if infer_img_idx >= (self.inference_image_num - 1): # Process {self.inference_image_num} images
+            if infer_img_idx >= (self.inference_image_num - 1):
                 break
 
         score = print_comprehensive_metrics(results, episode, total_invisible_psnr, total_invisible_ssim, total_invisible_lpips)
         visualize_actions(action_history, image_indices, attr_indices, step_indices)
 
-        # Print final time summary
         print(f"[Inference Complete] Total core processing time: {total_core_time:.5f}s")
         print(f"[Inference Complete] Total processing time (for reference): {total_processing_time:.5f}s")
         print(f"[Inference Complete] Average core processing time: {total_core_time / episode:.5f}s (processed {episode} in total)")

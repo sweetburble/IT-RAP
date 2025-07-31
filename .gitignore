@@ -21,3 +21,4 @@ attgan/256_shortcut1_inject1_none_hq/checkpoint
 attgan/256_shortcut1_inject1_none_hq/custom_testing
 
 package_test.py
+rainbow_inference_1.txt
