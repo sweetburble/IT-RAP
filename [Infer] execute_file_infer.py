@@ -5,7 +5,7 @@ import subprocess
 import os
 
 # Change the working directory.
-os.chdir("/scratch/x3092a02/stargan2")
+# os.chdir("/scratch/x3092a02/stargan2")
 
 # Set environment variables (for GPU memory optimization).
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
@@ -22,31 +22,31 @@ for i in range(1, num_runs + 1):
         process = subprocess.Popen(
             [
                 # CelebA dataset
-                # "python", "/scratch/x3092a02/stargan2/normal_main.py",
+                # "python", "stargan_main.py",
                 # "--mode", "inference",
                 # "--dataset", "CelebA",
                 # "--image_size", "256",
                 # "--c_dim", "5",
                 # "--selected_attrs", "Black_Hair", "Blond_Hair", "Brown_Hair", "Male", "Young",
-                # "--celeba_image_dir", "/scratch/x3092a02/stargan/data/celeba/images",
-                # "--attr_path", "/scratch/x3092a02/stargan/data/celeba/list_attr_celeba.txt",
+                # "--images_dir", "data/celeba/images",
+                # "--attr_path", "data/celeba/list_attr_celeba.txt",
                 # "--model_save_dir", "stargan_celeba_256/models",
-                # "--result_dir", "results_inference",
+                # "--result_dir", "result_inference",
                 # "--test_iters", "200000",
                 # "--batch_size", "1"
 
 
                 # MAAD-Face dataset
-                "python", "/scratch/x3092a02/stargan2/normal_main.py",
+                "python", "attgan_main.py",
                 "--mode", "inference",
                 "--dataset", "MAADFace",
                 "--image_size", "256",
                 "--c_dim", "5",
                 "--selected_attrs", "Black_Hair", "Blond_Hair", "Brown_Hair", "Male", "Young",
-                "--celeba_image_dir", "/scratch/x3092a02/stargan2/MAAD-Face/data/train",
-                "--attr_path", "/scratch/x3092a02/stargan2/MAAD-Face/MAAD_Face_filtered.csv",
+                "--images_dir", "MAAD-Face/data/train",
+                "--attr_path", "MAAD-Face/MAAD_Face_filtered.csv",
                 "--model_save_dir", "stargan_celeba_256/models",
-                "--result_dir", "results_inference",
+                "--result_dir", "result_inference",
                 "--test_iters", "200000",
                 "--batch_size", "1"
 

@@ -79,7 +79,8 @@ if __name__ == '__main__':
     parser.add_argument('--beta1', type=float, default=0.5, help='beta1 for Adam optimizer')
     parser.add_argument('--beta2', type=float, default=0.999, help='beta2 for Adam optimizer')
 
-    parser.add_argument('--training_images', type=int, default=5, help='Number of images used to train Rainbow DQN')
+    parser.add_argument('--training_image_num', type=int, default=5, help='Number of images used to train Rainbow DQN')
+    parser.add_argument('--inference_image_num', type=int, default=5, help='Number of images used to inference Rainbow DQN')
     # Starting index to resume training from the point of interruption when training with the MAAD-FACE dataset
     parser.add_argument('--start_index', type=int, default=0, help='Data index to start training from')
     parser.add_argument('--reward_weight', type=float, default=0.5, help='Reward weight (Deepfake defense: reward_weight, Imperceptibility: 1 - reward_weight)')

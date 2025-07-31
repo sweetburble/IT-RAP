@@ -1,6 +1,6 @@
+from turtle import st
 from torch.utils import data
 from torchvision import transforms as T
-from torchvision.datasets import ImageFolder
 from PIL import Image
 import torch
 import os
@@ -22,6 +22,7 @@ class CelebA(data.Dataset):
         self.transform = transform
         self.mode = mode
         self.train_dataset = []
+        self.inference_dataset = []
         self.attr2idx = {}
         self.idx2attr = {}
 
@@ -37,7 +38,10 @@ class CelebA(data.Dataset):
         # to be used as a basis for creating a 13-dimensional label vector.
         self.preprocess()
 
-        self.num_images = len(self.train_dataset)
+        if mode == 'train':
+            self.num_images = len(self.train_dataset)
+        elif mode == 'inference':
+            self.num_images = len(self.inference_dataset)
 
     def preprocess(self):
         """Preprocess the CelebA attribute file."""
@@ -63,14 +67,18 @@ class CelebA(data.Dataset):
                 label.append(values[idx] == '1')
             # As a result, `label` will always be a list with 13 boolean values.
 
-            self.train_dataset.append([filename, label])
+            if 2000 <= (i + 1) < 4000:
+                # Use the range from 2000 to 3999 for inference dataset.
+                self.inference_dataset.append([filename, label])
+            else:
+                self.train_dataset.append([filename, label])
 
         print('Finished preprocessing the CelebA dataset...')
 
 
     def __getitem__(self, index):
         """Return one image and its corresponding attribute label."""
-        dataset = self.train_dataset
+        dataset = self.train_dataset if self.mode == 'train' else self.inference_dataset
         filename, label = dataset[index]
         image = Image.open(os.path.join(self.image_dir, filename))
         
@@ -82,74 +90,72 @@ class CelebA(data.Dataset):
         return self.num_images
 
 
-
-
-
 class MAADFace(data.Dataset):
     """Dataset class for the MAAD-Face dataset."""
-    def __init__(self, image_dir, attr_path, selected_attrs, transform, mode, start_index=0):
-        self.image_dir = image_dir  # e.g., /scratch/.../train
-        self.attr_path = attr_path  # e.g., /scratch/.../MAAD_Face_filtered.csv
-        # selected_attrs is now used only to specify the target attributes for the attack.
+    def __init__(self, image_dir, attr_path, selected_attrs, transform, mode, start_index):
+        self.image_dir = image_dir
+        self.attr_path = attr_path
         self.selected_attrs = selected_attrs
         self.transform = transform
         self.mode = mode
-        self.all_dataset = []
+        self.train_dataset = []
+        self.inference_dataset = []
+        self.start_index = start_index # Starting index for training dataset
         self.attr2idx = {}
         self.idx2attr = {}
 
-        # Define the 13 attributes used by AttGAN for training within the class.
-        # This is explicitly defined to maintain consistency with the CelebA class and
-        # to serve as a basis for generating the 13-dimensional label vector required by AttGAN.
         self.attgan_attrs = [
             'Bald', 'Bangs', 'Black_Hair', 'Blond_Hair', 'Brown_Hair', 'Bushy_Eyebrows',
             'Eyeglasses', 'Male', 'Mouth_Slightly_Open', 'Mustache', 'No_Beard', 'Pale_Skin', 'Young'
         ]
 
-        self.preprocess(start_index=start_index)
-        self.num_images = len(self.all_dataset)
+        self.preprocess()
+
+        if mode == 'train':
+            self.num_images = len(self.train_dataset)
+        elif mode == 'inference':
+            self.num_images = len(self.inference_dataset)
 
 
-    def preprocess(self, start_index=0):
+    def preprocess(self):
         df = pd.read_csv(self.attr_path, encoding='utf-8-sig')
-        maad_attr_names = list(df.columns) # Includes 'Filename'
+        maad_attr_names = list(df.columns)
 
         def process_row(row):
             filename = row['Filename'].strip()
             label = []
-            # Generate labels based on the list of 13 AttGAN attributes.
             for attr_name in self.attgan_attrs:
-                # If the corresponding attribute column exists in the MAAD-Face dataset.
                 if attr_name in maad_attr_names:
                     label.append(row[attr_name] == 1)
-                # If the attribute is not in the MAAD-Face dataset (e.g., 'Mouth_Slightly_Open', 'Pale_Skin').
                 else:
-                    label.append(False) # Treat it as False since the attribute is missing.
+                    label.append(False)
             return (filename, label)
         
-        # The original code generated labels only for the selected_attrs (5 attributes).
-        # The modified code generates labels for all 13 AttGAN attributes.
-        # For attributes not present in MAAD-Face, it fills in False, thus semantically correctly
-        # constructing the 13-dimensional input required by the model.
-        # This ensures that the label formats of the CelebA and MAAD-Face datasets are perfectly unified.
         full_dataset = [process_row(row) for _, row in df.iterrows()]
+        
+        random.seed(1234)
+        random.shuffle(full_dataset)
 
-        self.all_dataset = full_dataset[start_index:]
+        for i, data_item in enumerate(full_dataset):
+            if i < 2000:
+                self.inference_dataset.append(data_item)
+            elif i >= (2000 + self.start_index):
+                self.train_dataset.append(data_item)
+        
+        print('Finished preprocessing the MAADFace dataset...')
+
 
     def __getitem__(self, index):
-        dataset = self.all_dataset
+        dataset = self.train_dataset if self.mode == 'train' else self.inference_dataset
         filename, label = dataset[index]
 
         image_path = os.path.join(self.image_dir, filename)
         image = Image.open(image_path).convert('RGB')
-        # The face alignment feature is retained.
         image = align_face(image, crop_size=178)
-        # The label returned with self.transform(image) is now a 13-dimensional tensor.
         return self.transform(image), torch.FloatTensor(label), filename
 
     def __len__(self):
         return self.num_images
-
 
 
 

@@ -39,7 +39,7 @@ import subprocess
 # Run with [CelebA] dataset
 os.system(
     "python \"attgan_main.py\" "
-    "--mode train " # or inference
+    "--mode train "
     "--dataset CelebA "
     "--image_size 256 "
     "--c_dim 5 "
@@ -53,12 +53,12 @@ os.system(
 # Run with [MAAD-Face] dataset
 # os.system(
 #     "python \"attgan_main.py\" "
-#     "--mode train " # or inference     
+#     "--mode train " 
 #     "--dataset MAADFace "
 #     "--image_size 256 "
 #     "--c_dim 5 "
 #     "--selected_attrs Black_Hair Blond_Hair Brown_Hair Male Young "
-#     "--celeba_image_dir=MAAD-Face\\data\\train "
+#     "--images_dir=MAAD-Face\\data\\train "
 #     "--attr_path=MAAD-Face\\MAAD_Face_filtered.csv "
 #     "--model_save_dir=stargan_celeba_256\\models "
 #     "--result_dir=result_test "

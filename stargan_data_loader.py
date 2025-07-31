@@ -1,6 +1,5 @@
 from torch.utils import data
 from torchvision import transforms as T
-from torchvision.datasets import ImageFolder
 from PIL import Image
 import torch
 import os
@@ -21,15 +20,15 @@ class CelebA(data.Dataset):
         self.transform = transform
         self.mode = mode
         self.train_dataset = []
-        self.test_dataset = []
+        self.inference_dataset = []
         self.attr2idx = {}
         self.idx2attr = {}
         self.preprocess()
 
         if mode == 'train':  
             self.num_images = len(self.train_dataset)
-        else:
-            self.num_images = len(self.test_dataset)
+        elif mode == 'inference':
+            self.num_images = len(self.inference_dataset)
 
     def preprocess(self):
         """Preprocess the CelebA attribute file."""
@@ -52,8 +51,9 @@ class CelebA(data.Dataset):
                 idx = self.attr2idx[attr_name]
                 label.append(values[idx] == '1')
 
-            if (i+1) < 2000:
-                self.test_dataset.append([filename, label])
+            if 2000 <= (i + 1) < 4000:
+                # Use the range from 2000 to 3999 for inference dataset.
+                self.inference_dataset.append([filename, label])
             else:
                 self.train_dataset.append([filename, label])
 
@@ -63,19 +63,10 @@ class CelebA(data.Dataset):
     def __getitem__(self, index):
         """Return one image and its corresponding attribute label."""
         # The original male photo is the first photo in the test data
-        dataset = self.train_dataset if self.mode == 'train' else self.test_dataset
+        dataset = self.train_dataset if self.mode == 'train' else self.inference_dataset
         filename, label = dataset[index]
         image = Image.open(os.path.join(self.image_dir, filename))
-        
-        # # Check the used image index
-        # # (1) Print the index and filename
-        # print(f"Using image index: {index}, filename: {filename}")
 
-        # # (2) Or write to a log file
-        # with open('used_images.log', 'a') as log_file:
-        #     log_file.write(f"Index: {index}, Filename: {filename}\n")
-
-        # image = noise.noisy('s&p', image)
         return self.transform(image), torch.FloatTensor(label), filename
 
     def __len__(self):
@@ -91,22 +82,20 @@ class MAADFace(data.Dataset):
         self.selected_attrs = selected_attrs
         self.transform = transform
         self.mode = mode
-        self.all_dataset = []
+        self.train_dataset = []
+        self.inference_dataset = []
+        self.start_index = start_index # Starting index for training dataset
         self.attr2idx = {} 
-        self.idx2attr = {}  
-        self.preprocess(start_index=start_index)
-        self.num_images = len(self.all_dataset)
+        self.idx2attr = {}
 
-    def preprocess(self, start_index=0):
-        def filter_until_filename(df, target_filename):
-            filtered_rows = []
-            for i, filename in enumerate(df['Filename']):
-                filtered_rows.append(i)
-                if filename == target_filename:
-                    break
-            return df.loc[filtered_rows].reset_index(drop=True)
+        self.preprocess()
+        if mode == 'train':
+            self.num_images = len(self.train_dataset)
+        elif mode == 'inference':
+            self.num_images = len(self.inference_dataset)
 
-        df = pd.read_csv(self.attr_path,encoding='utf-8-sig') # csv file
+    def preprocess(self):
+        df = pd.read_csv(self.attr_path, encoding='utf-8-sig') # csv file
         # print("column names (47) at MAAD-FACE dataset :", df.columns.tolist())
         attr_names = list(df.columns[1:])  # Exclude 'Filename'
 
@@ -121,13 +110,19 @@ class MAADFace(data.Dataset):
             return (filename, label)
         full_dataset = [process_row(row) for _, row in df.iterrows()]   # Sequential learning on the entire dataset
 
+        random.seed(1234)
+        random.shuffle(full_dataset)
+        for i, data_item in enumerate(full_dataset):
+            if i < 2000:
+                self.inference_dataset.append(data_item)
+            elif i >= (2000 + self.start_index):
+                self.train_dataset.append(data_item)# Start from the index
 
-        # Start sequentially regardless of train/test/inference
-        self.all_dataset = full_dataset[start_index:] # Start from the index
+        print('Finished preprocessing the MAADFace dataset...')
 
 
     def __getitem__(self, index):
-        dataset = self.all_dataset
+        dataset = self.train_dataset if self.mode == 'train' else self.inference_dataset
         filename, label = dataset[index]
 
         image_path = os.path.join(self.image_dir, filename)
@@ -171,11 +166,10 @@ def align_face(image: Image.Image, crop_size=178) -> Image.Image:
 
 
 def get_loader(image_dir, attr_path, selected_attrs, crop_size=178, image_size=128, 
-               batch_size=16, dataset=None, mode='test', num_workers=1, start_index=0):
+               batch_size=16, dataset=None, mode='train', num_workers=1, start_index=0):
     """Build and return a data loader."""
     transform = []
-    if mode == 'test':           
-        transform.append(T.RandomHorizontalFlip())
+    transform.append(T.RandomHorizontalFlip())
     transform.append(T.CenterCrop(crop_size))
     transform.append(T.Resize(image_size))
     transform.append(T.ToTensor())
@@ -185,7 +179,7 @@ def get_loader(image_dir, attr_path, selected_attrs, crop_size=178, image_size=1
     if dataset == 'CelebA':
         dataset = CelebA(image_dir, attr_path, selected_attrs, transform, mode)
     elif dataset == 'MAADFace':
-        dataset = MAADFace(image_dir, attr_path, selected_attrs, transform, mode, start_index=start_index)
+        dataset = MAADFace(image_dir, attr_path, selected_attrs, transform, mode,start_index=start_index)
 
     data_loader = data.DataLoader(dataset=dataset,
                                   batch_size=1,

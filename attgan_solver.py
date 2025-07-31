@@ -268,7 +268,8 @@ class SolverRainbow(object):
         self.beta1 = config.beta1
         self.beta2 = config.beta2
         self.selected_attrs = config.selected_attrs
-        self.training_images = config.training_images
+        self.training_image_num = config.training_image_num
+        self.inference_image_num = config.inference_image_num 
         self.reward_weight = config.reward_weight # Reward weight (Trade-off between deepfake defense and invisibility)
 
         # Parameters related to Test configurations
@@ -561,7 +562,7 @@ class SolverRainbow(object):
             print(f"[Core Processing Time] Image {infer_img_idx + 1} core processing time: {image_core_time:.5f}s")
             print(f"[Total Processing Time] Image {infer_img_idx + 1} total processing time: {total_elapsed_time:.5f}s (for reference)")
 
-            if infer_img_idx == start_idx + 99: # Process {start_idx+1} images
+            if infer_img_idx >= (self.inference_image_num - 1): # Process {self.inference_image_num} images
                 break
 
         score = print_comprehensive_metrics(results, episode, total_invisible_psnr, total_invisible_ssim, total_invisible_lpips)
@@ -630,7 +631,7 @@ class SolverRainbow(object):
             state_dim = 128
 
         # Variable to be used in select_action()
-        initial_ratio_steps = self.max_steps_per_episode * self.training_images * 5 // 10
+        initial_ratio_steps = self.max_steps_per_episode * self.training_image_num * 5 // 10
 
         action_dim = self.action_dim # Action Dimension
         self.rl_agent = RainbowDQNAgent(state_dim, action_dim, self.agent_lr, self.gamma, self.epsilon_start, self.epsilon_end, self.epsilon_decay, self.target_update_interval,
@@ -1174,7 +1175,7 @@ class SolverRainbow(object):
                 print(f"[!] Error saving Rainbow DQN weights and optimizer weights (episode {episode}): {e}")
 
 
-            if test_img_idx >= (self.training_images - 1): # Process only self.training_images number of images
+            if test_img_idx >= (self.training_image_num - 1): # Process only self.training_image_num number of images
                 break
 
         plot_reward_trend(reward_per_episode, window_size=25, save_path=os.path.join(self.result_dir, "reward_trend.png")) # Save reward trend plot
