@@ -22,33 +22,33 @@ for i in range(1, num_runs + 1):
         process = subprocess.Popen(
             [
                 # CelebA dataset
-                # "python", "stargan_main.py",
-                # "--mode", "inference",
-                # "--dataset", "CelebA",
-                # "--image_size", "256",
-                # "--c_dim", "5",
-                # "--selected_attrs", "Black_Hair", "Blond_Hair", "Brown_Hair", "Male", "Young",
-                # "--images_dir", "data/celeba/images",
-                # "--attr_path", "data/celeba/list_attr_celeba.txt",
-                # "--model_save_dir", "stargan_celeba_256/models",
-                # "--result_dir", "result_inference",
-                # "--test_iters", "200000",
-                # "--batch_size", "1"
-
-
-                # MAAD-Face dataset
                 "python", "stargan_main.py",
                 "--mode", "inference",
-                "--dataset", "MAADFace",
+                "--dataset", "CelebA",
                 "--image_size", "256",
                 "--c_dim", "5",
                 "--selected_attrs", "Black_Hair", "Blond_Hair", "Brown_Hair", "Male", "Young",
-                "--images_dir", "MAAD-Face/data/train",
-                "--attr_path", "MAAD-Face/MAAD_Face_filtered.csv",
+                "--images_dir", "data/celeba/images",
+                "--attr_path", "data/celeba/list_attr_celeba.txt",
                 "--model_save_dir", "stargan_celeba_256/models",
                 "--result_dir", "result_inference",
                 "--test_iters", "200000",
                 "--batch_size", "1"
+
+
+                # MAAD-Face dataset
+                # "python", "stargan_main.py",
+                # "--mode", "inference",
+                # "--dataset", "MAADFace",
+                # "--image_size", "256",
+                # "--c_dim", "5",
+                # "--selected_attrs", "Black_Hair", "Blond_Hair", "Brown_Hair", "Male", "Young",
+                # "--images_dir", "MAAD-Face/data/train",
+                # "--attr_path", "MAAD-Face/MAAD_Face_filtered.csv",
+                # "--model_save_dir", "stargan_celeba_256/models",
+                # "--result_dir", "result_inference",
+                # "--test_iters", "200000",
+                # "--batch_size", "1"
 
             ],
             stdout=f, stderr=subprocess.STDOUT

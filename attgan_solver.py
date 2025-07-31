@@ -317,12 +317,12 @@ class SolverRainbow(object):
         self.build_rlab_agent() # Build RLAB Agent
 
 
-    def inference_rainbow_dqn(self, data_loader, result_dir, start_idx=0):
+    def inference_rainbow_dqn(self, data_loader, result_dir):
         os.makedirs(result_dir, exist_ok=True)
         self.attack_func = attgan_attacks.AttackFunction(config=self.config, model=attgan_model.G, device=self.device)
         self.rl_agent.dqn.eval()
 
-        # AttGAN의 13개 전체 속성 리스트 (train_attack와 동일)
+        # Full list of 13 attributes for AttGAN (same as in train_attack)
         self.attgan_attrs = [
             'Bald', 'Bangs', 'Black_Hair', 'Blond_Hair', 'Brown_Hair', 'Bushy_Eyebrows',
             'Eyeglasses', 'Male', 'Mouth_Slightly_Open', 'Mustache', 'No_Beard', 'Pale_Skin', 'Young'
@@ -331,7 +331,7 @@ class SolverRainbow(object):
         total_perturbation_map = np.zeros((256, 256))
         total_remain_map = np.zeros((256, 256))
 
-        # 결과 저장을 위한 딕셔너리 (기존 구조 유지)
+        # Dictionary to store results (maintaining the existing structure)
         results = {
             "원본(변형없음)": {"l1_error": 0.0, "l2_error": 0.0, "defense_psnr": 0.0, 
                         "defense_ssim": 0.0, "defense_lpips": 0.0, "attack_success": 0, "total_remain_map": np.zeros((256, 256))},
@@ -350,27 +350,24 @@ class SolverRainbow(object):
         
         episode = 0
 
-        # 액션 선택 기록 및 시각화를 위한 변수
+        # Variables for recording and visualizing action selections
         action_history = []
         image_indices = []
         attr_indices = []
         step_indices = []
 
-        # 시간 측정 변수 초기화
+        # Initialize time measurement variables
         total_core_time = 0.0
         total_processing_time = 0.0
         
         for infer_img_idx, (x_real, c_org, filename) in enumerate(data_loader):
-            if infer_img_idx < start_idx:
-                continue
-
             total_start_time = time.time()
             image_core_time = 0.0
 
             x_real = x_real.to(self.device)
-            c_org = c_org.to(self.device) # c_org도 device로 이동
+            c_org = c_org.to(self.device) # Move c_org to the device as well
 
-            # 최종 결과를 이미지로 저장하기 위한 리스트
+            # Lists to store images for final result visualization
             noattack_result_list = [x_real]
             jpeg_result_list = [x_real]
             opencv_result_list = [x_real]
@@ -382,17 +379,17 @@ class SolverRainbow(object):
                 print("=" * 100)
                 print(f"Target Attribute ({idx + 1}/{len(self.selected_attrs)}): {attr_name}")
 
-                # 1. 원본 13차원 속성 벡터를 복사하여 타겟 벡터 생성 준비
+                # 1. Copy the original 13-dimensional attribute vector to prepare the target vector
                 c_trg = c_org.clone()
 
-                # 2. 현재 타겟 속성의 인덱스를 13개 전체 속성 리스트에서 찾기
+                # 2. Find the index of the current target attribute in the full list of 13 attributes
                 try:
                     attr_index = self.attgan_attrs.index(attr_name)
                 except ValueError:
-                    print(f"Warning: '{attr_name}'는 AttGAN의 기본 속성이 아닙니다. 이 속성을 건너뜁니다.")
+                    print(f"Warning: '{attr_name}' is not a default AttGAN attribute. Skipping this attribute.")
                     continue
 
-                # 3. 해당 속성의 값을 반전 (0 -> 1, 1 -> 0)
+                # 3. Invert the value of the corresponding attribute (0 -> 1, 1 -> 0)
                 c_trg[:, attr_index] = 1 - c_trg[:, attr_index]
 
                 perturbed_image = x_real.clone().detach_() + torch.tensor(np.random.uniform(-self.noise_level, self.noise_level, x_real.shape).astype('float32')).to(self.device)
@@ -432,7 +429,7 @@ class SolverRainbow(object):
                 analyzed_perturbation_array = analyze_perturbation(perturbed_image - x_real)
                 total_perturbation_map += analyzed_perturbation_array
 
-                # [추론 1] 변환 없음 (원본)
+                # [Inference 1] No Transformation (Original)
                 with torch.no_grad():
                     remain_perturb_array = analyze_perturbation(perturbed_image - x_real)
                     results["원본(변형없음)"]["total_remain_map"] += remain_perturb_array
@@ -442,7 +439,7 @@ class SolverRainbow(object):
                     noattack_result_list.append(perturbed_gen_image_orig)
                     results = calculate_and_save_metrics(original_gen_image, perturbed_gen_image_orig, "원본(변형없음)", results)
 
-                # [추론 2] JPEG 압축
+                # [Inference 2] JPEG Compression
                 x_adv_jpeg = compress_jpeg(perturbed_image, quality=75)
                 with torch.no_grad():
                     remain_perturb_array = analyze_perturbation(x_adv_jpeg - x_real)
@@ -453,7 +450,7 @@ class SolverRainbow(object):
                     jpeg_result_list.append(perturbed_gen_image_jpeg)
                     results = calculate_and_save_metrics(original_gen_image, perturbed_gen_image_jpeg, "JPEG압축", results)
 
-                # [추론 3] OpenCV 디노이징
+                # [Inference 3] OpenCV Denoising
                 x_adv_denoise_opencv = denoise_opencv(perturbed_image)
                 with torch.no_grad():
                     remain_perturb_array = analyze_perturbation(x_adv_denoise_opencv - x_real)
@@ -464,7 +461,7 @@ class SolverRainbow(object):
                     opencv_result_list.append(perturbed_gen_image_opencv)
                     results = calculate_and_save_metrics(original_gen_image, perturbed_gen_image_opencv, "OpenCV디노이즈", results)
 
-                # [추론 4] 중간값 스무딩
+                # [Inference 4] Median Smoothing
                 x_adv_median = denoise_scikit(perturbed_image)
                 with torch.no_grad(): 
                     remain_perturb_array = analyze_perturbation(x_adv_median - x_real)
@@ -475,7 +472,7 @@ class SolverRainbow(object):
                     median_result_list.append(perturbed_gen_image_median)
                     results = calculate_and_save_metrics(original_gen_image, perturbed_gen_image_median, "중간값스무딩", results)
 
-                # [추론 5] 랜덤 리사이즈 및 패딩
+                # [Inference 5] Random Resize and Padding
                 x_real_padding, x_adv_padding = random_resize_padding(x_real, perturbed_image)
                 with torch.no_grad():
                     remain_perturb_array = analyze_perturbation(x_adv_padding - x_real_padding)
@@ -487,7 +484,7 @@ class SolverRainbow(object):
                     padding_result_list.append(perturbed_gen_image_padding)
                     results = calculate_and_save_metrics(original_gen_image_padding, perturbed_gen_image_padding, "크기조정패딩", results)
 
-                # [추론 6] 랜덤 이미지 변환
+                # [Inference 6] Random Image Transformations
                 x_real_transforms, x_adv_transforms = random_image_transforms(x_real, perturbed_image)
                 with torch.no_grad():
                     remain_perturb_array = analyze_perturbation(x_adv_transforms - x_real_transforms)

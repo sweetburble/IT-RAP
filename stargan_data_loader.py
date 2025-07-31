@@ -23,6 +23,7 @@ class CelebA(data.Dataset):
         self.inference_dataset = []
         self.attr2idx = {}
         self.idx2attr = {}
+
         self.preprocess()
 
         if mode == 'train':  
@@ -112,11 +113,12 @@ class MAADFace(data.Dataset):
 
         random.seed(1234)
         random.shuffle(full_dataset)
+
         for i, data_item in enumerate(full_dataset):
             if i < 2000:
                 self.inference_dataset.append(data_item)
             elif i >= (2000 + self.start_index):
-                self.train_dataset.append(data_item)# Start from the index
+                self.train_dataset.append(data_item) # Start from the index
 
         print('Finished preprocessing the MAADFace dataset...')
 

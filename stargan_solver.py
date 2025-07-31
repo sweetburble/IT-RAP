@@ -314,7 +314,7 @@ class SolverRainbow(object):
         self.build_rlab_agent() # Build RLAB Agent
 
 
-    def inference_rainbow_dqn(self, data_loader, result_dir, start_idx=0):
+    def inference_rainbow_dqn(self, data_loader, result_dir):
         os.makedirs(result_dir, exist_ok=True)
         self.attack_func = stargan_attacks.AttackFunction(config=self.config, model=self.G, device=self.device)
         self.rl_agent.dqn.eval()
@@ -349,6 +349,8 @@ class SolverRainbow(object):
         attr_indices = []
         step_indices = []
 
+        # DEBUG
+        print(f"[Inference] Starting inference with {len(data_loader)} images...")
 
         # Initialize time measurement variables
         total_core_time = 0.0
@@ -356,9 +358,6 @@ class SolverRainbow(object):
         episode = 0
         
         for infer_img_idx, (x_real, c_org, filename) in enumerate(data_loader):
-            if infer_img_idx < start_idx:   # (Skip until start_idx)
-                continue
-
             # Start measuring total processing time
             total_start_time = time.time()
             

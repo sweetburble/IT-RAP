@@ -29,11 +29,11 @@ def main(config):
     # Data loader
     dataset_loader = None
 
-    if config.dataset in ['CelebA', 'Both']:
+    if config.dataset == 'CelebA':
         dataset_loader = get_loader(config.images_dir, config.attr_path, config.selected_attrs,
                                    config.celeba_crop_size, config.image_size, config.batch_size,
                                    'CelebA', config.mode, config.num_workers, config.start_index)
-    elif config.dataset in ['MAADFace', 'Both']:
+    elif config.dataset == 'MAADFace':
         dataset_loader = get_loader(config.images_dir, config.attr_path, config.selected_attrs,
                                 config.celeba_crop_size, config.image_size, config.batch_size,
                                 'MAADFace', config.mode, config.num_workers, config.start_index)
@@ -45,12 +45,12 @@ def main(config):
 
     elif config.mode == 'inference':
         # checkpoint_path = os.path.join(config.model_save_dir, f'rainbow_dqn_final_{config.test_iters}.pth')
-        checkpoint_path = os.path.join(config.model_save_dir, f'final_rainbow_dqn.pth')    # rainbow_dqn_agent.ckpt
+        checkpoint_path = os.path.join(config.model_save_dir, f'final_rainbow_dqn.pth') # rainbow_dqn_agent.ckpt
         solver.load_rainbow_dqn_checkpoint(checkpoint_path)
         # Load StarGAN model (required)
         solver.restore_model(config.test_iters)
         # Perform inference
-        solver.inference_rainbow_dqn(dataset_loader, result_dir=config.result_dir, start_idx=300)
+        solver.inference_rainbow_dqn(dataset_loader, result_dir=config.result_dir)
 
 
 
@@ -100,7 +100,7 @@ if __name__ == '__main__':
     parser.add_argument('--log_dir', type=str, default='stargan/logs')
     parser.add_argument('--model_save_dir', type=str, default='stargan_celeba_256/models')
     parser.add_argument('--sample_dir', type=str, default='stargan/samples')
-    parser.add_argument('--result_dir', type=str, default='stargan/results_attack') # Changed result_dir
+    parser.add_argument('--result_dir', type=str, default='stargan/result_test') # Changed result_dir
 
     parser.add_argument('--epsilon_start', type=float, default=0.95, help='epsilon start value for exploration') # Currently not in use
     parser.add_argument('--epsilon_end', type=float, default=0.04, help='epsilon end value for exploration') # Currently not in use

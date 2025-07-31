@@ -38,7 +38,7 @@ import subprocess
 
 # Run with [CelebA] dataset
 os.system(
-    "python \"attgan_main.py\" "
+    "python \"stargan_main.py\" "
     "--mode train "
     "--dataset CelebA "
     "--image_size 256 "

@@ -1,4 +1,3 @@
-from turtle import st
 from torch.utils import data
 from torchvision import transforms as T
 from PIL import Image
