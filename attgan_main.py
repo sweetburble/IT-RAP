@@ -29,17 +29,17 @@ def main(config):
     dataset_loader = None
 
     if config.dataset in ['CelebA', 'Both']:
-        dataset_loader = get_loader(config.celeba_image_dir, config.attr_path, config.selected_attrs,
+        dataset_loader = get_loader(config.images_dir, config.attr_path, config.selected_attrs,
                                    config.celeba_crop_size, config.image_size, config.batch_size,
                                    'CelebA', config.mode, config.num_workers, config.start_index)
     elif config.dataset in ['MAADFace', 'Both']:
-        dataset_loader = get_loader(config.celeba_image_dir, config.attr_path, config.selected_attrs,
+        dataset_loader = get_loader(config.images_dir, config.attr_path, config.selected_attrs,
                                 config.celeba_crop_size, config.image_size, config.batch_size,
                                 'MAADFace', config.mode, config.num_workers, config.start_index)
 
     solver = SolverRainbow(dataset_loader, config)
 
-    if config.mode == 'test':
+    if config.mode == 'train':
         solver.train_attack()
 
     elif config.mode == 'inference':
@@ -79,7 +79,7 @@ if __name__ == '__main__':
     parser.add_argument('--beta1', type=float, default=0.5, help='beta1 for Adam optimizer')
     parser.add_argument('--beta2', type=float, default=0.999, help='beta2 for Adam optimizer')
 
-    parser.add_argument('--training_images', type=int, default=1, help='Number of images used to train Rainbow DQN')
+    parser.add_argument('--training_images', type=int, default=5, help='Number of images used to train Rainbow DQN')
     # Starting index to resume training from the point of interruption when training with the MAAD-FACE dataset
     parser.add_argument('--start_index', type=int, default=0, help='Data index to start training from')
     parser.add_argument('--reward_weight', type=float, default=0.5, help='Reward weight (Deepfake defense: reward_weight, Imperceptibility: 1 - reward_weight)')
@@ -90,10 +90,10 @@ if __name__ == '__main__':
 
     # Miscellaneous settings
     parser.add_argument('--num_workers', type=int, default=1)
-    parser.add_argument('--mode', type=str, default='test', choices=['train', 'test', 'inference']) # Changed mode to test
+    parser.add_argument('--mode', type=str, default='train', choices=['train', 'inference']) # Changed mode to train
 
     # Directory settings
-    parser.add_argument('--celeba_image_dir', type=str, default='data/celeba/images')
+    parser.add_argument('--images_dir', type=str, default='data/celeba/images')
     parser.add_argument('--attr_path', type=str, default='data/celeba/list_attr_celeba.txt')
     parser.add_argument('--log_dir', type=str, default='stargan/logs')
     parser.add_argument('--model_save_dir', type=str, default='stargan_celeba_256/models')

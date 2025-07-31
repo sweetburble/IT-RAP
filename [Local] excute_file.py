@@ -18,7 +18,7 @@ import subprocess
 #         process = subprocess.Popen(
 #             [
 #                 "python", "/scratch/x3092a02/stargan2/optuna_main.py",
-#                 "--mode", "test",
+#                 "--mode", "train",
 #                 "--dataset", "CelebA",
 #                 "--image_size", "256",
 #                 "--c_dim", "5",
@@ -39,7 +39,7 @@ import subprocess
 # Run with [CelebA] dataset
 os.system(
     "python \"attgan_main.py\" "
-    "--mode test "
+    "--mode train " # or inference
     "--dataset CelebA "
     "--image_size 256 "
     "--c_dim 5 "
@@ -53,7 +53,7 @@ os.system(
 # Run with [MAAD-Face] dataset
 # os.system(
 #     "python \"attgan_main.py\" "
-#     "--mode test "         
+#     "--mode train " # or inference     
 #     "--dataset MAADFace "
 #     "--image_size 256 "
 #     "--c_dim 5 "

@@ -1,8 +1,15 @@
 ﻿data/celeba
+
 stargan_celeba_256
-results_test
+
+result_test
+
 test_result_images
+
+MAAD-Face
+
 __pycache__
+
 attgan/256_shortcut1_inject0_none/checkpoint
 attgan/256_shortcut1_inject0_none/custom_testing
 attgan/256_shortcut1_inject0_none_hq/checkpoint
@@ -11,8 +18,5 @@ attgan/256_shortcut1_inject1_none/checkpoint
 attgan/256_shortcut1_inject1_none/custom_testing
 attgan/256_shortcut1_inject1_none_hq/checkpoint
 attgan/256_shortcut1_inject1_none_hq/custom_testing
-MAAD-Face/data
-MAAD-Face/MAAD_Face.csv
-MAAD-Face/MAAD_Face_filtered.csv
 
 package_test.py

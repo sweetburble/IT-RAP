@@ -842,6 +842,8 @@ class SolverRainbow(object):
         # Set data loader
         data_loader = self.dataset_loader
 
+        print(f"data_loader length: {len(data_loader)}")
+
         # Initialize a dictionary to store results for each image transformation method
         results = {
             "원본(변형없음)": {"l1_error": 0.0, "l2_error": 0.0, "defense_psnr": 0.0, 

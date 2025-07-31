@@ -186,8 +186,6 @@ def get_loader(image_dir, attr_path, selected_attrs, crop_size=178, image_size=1
         dataset = CelebA(image_dir, attr_path, selected_attrs, transform, mode)
     elif dataset == 'MAADFace':
         dataset = MAADFace(image_dir, attr_path, selected_attrs, transform, mode, start_index=start_index)
-    elif dataset == 'RaFD':
-        dataset = ImageFolder(image_dir, transform)
 
     data_loader = data.DataLoader(dataset=dataset,
                                   batch_size=1,

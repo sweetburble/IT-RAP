@@ -242,20 +242,20 @@ def visualize_actions(action_history, image_indices, attr_indices, step_indices)
     # Create folder if it doesn't exist
     os.makedirs(save_dir, exist_ok=True)
 
-    # Move image files from the "results_test" folder to the newly created folder
-    results_test_dir = None
-    for candidate_dir in ["results_test", "results_test_attgan", "results_inference"]:
+    # Move image files from the "result_test" folder to the newly created folder
+    result_test_dir = None
+    for candidate_dir in ["result_test", "result_test_attgan", "result_inference"]:
         if os.path.exists(candidate_dir):
-            results_test_dir = candidate_dir
+            result_test_dir = candidate_dir
             break
 
-    if results_test_dir:
-        for filename in os.listdir(results_test_dir):
-            src_path = os.path.join(results_test_dir, filename)
+    if result_test_dir:
+        for filename in os.listdir(result_test_dir):
+            src_path = os.path.join(result_test_dir, filename)
             dst_path = os.path.join(save_dir, filename)
             shutil.move(src_path, dst_path)
     else:
-        print("'results_test', 'results_inference', or 'results_test_att' folder does not exist.")
+        print("'result_test', 'result_inference', or 'result_test_att' folder does not exist.")
 
 
     # Create DataFrame

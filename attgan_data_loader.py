@@ -22,7 +22,6 @@ class CelebA(data.Dataset):
         self.transform = transform
         self.mode = mode
         self.train_dataset = []
-        self.test_dataset = []
         self.attr2idx = {}
         self.idx2attr = {}
 
@@ -38,10 +37,7 @@ class CelebA(data.Dataset):
         # to be used as a basis for creating a 13-dimensional label vector.
         self.preprocess()
 
-        if mode == 'train':
-            self.num_images = len(self.train_dataset)
-        else:
-            self.num_images = len(self.test_dataset)
+        self.num_images = len(self.train_dataset)
 
     def preprocess(self):
         """Preprocess the CelebA attribute file."""
@@ -67,17 +63,14 @@ class CelebA(data.Dataset):
                 label.append(values[idx] == '1')
             # As a result, `label` will always be a list with 13 boolean values.
 
-            if (i+1) < 2000:
-                self.test_dataset.append([filename, label])
-            else:
-                self.train_dataset.append([filename, label])
+            self.train_dataset.append([filename, label])
 
         print('Finished preprocessing the CelebA dataset...')
 
 
     def __getitem__(self, index):
         """Return one image and its corresponding attribute label."""
-        dataset = self.train_dataset if self.mode == 'train' else self.test_dataset
+        dataset = self.train_dataset
         filename, label = dataset[index]
         image = Image.open(os.path.join(self.image_dir, filename))
         
@@ -190,11 +183,10 @@ def align_face(image: Image.Image, crop_size=178) -> Image.Image:
 
 
 def get_loader(image_dir, attr_path, selected_attrs, crop_size=178, image_size=128,
-               batch_size=16, dataset=None, mode='test', num_workers=1, start_index=0):
+               batch_size=16, dataset=None, mode='train', num_workers=1, start_index=0):
     """Build and return a data loader."""
     transform = []
-    if mode == 'test':
-        transform.append(T.RandomHorizontalFlip())
+    transform.append(T.RandomHorizontalFlip())
     transform.append(T.CenterCrop(crop_size))
     transform.append(T.Resize(image_size))
     transform.append(T.ToTensor())
@@ -205,8 +197,6 @@ def get_loader(image_dir, attr_path, selected_attrs, crop_size=178, image_size=1
         dataset = CelebA(image_dir, attr_path, selected_attrs, transform, mode)
     elif dataset == 'MAADFace':
         dataset = MAADFace(image_dir, attr_path, selected_attrs, transform, mode, start_index=start_index)
-    elif dataset == 'RaFD':
-        dataset = ImageFolder(image_dir, transform)
 
     data_loader = data.DataLoader(dataset=dataset,
                                   batch_size=1,
