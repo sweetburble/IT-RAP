@@ -42,6 +42,14 @@ https://github.com/user-attachments/assets/9a0e9cda-f8f4-4470-b08c-a91219d901fc
 
 
 ## Acknowledges 
+Our work is based on:
 
 
+[1] [StarGAN](https://github.com/yunjey/stargan)
+
+[2] [AttGAN](https://github.com/elvisyjlin/AttGAN-PyTorch)
+
+[3] [Disrupting](https://github.com/natanielruiz/disrupting-deepfakes)
+
+[4] [DiffJPEG](https://github.com/mlomnitz/DiffJPEG)
 
