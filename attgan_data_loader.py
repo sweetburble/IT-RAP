@@ -51,8 +51,10 @@ class CelebA(data.Dataset):
             self.idx2attr[i] = attr_name
 
         lines = lines[2:]
+
         random.seed(1234)
         random.shuffle(lines)
+
         for i, line in enumerate(lines):
             split = line.split()
             filename = split[0]
