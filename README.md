@@ -10,6 +10,7 @@ Our comprehensive experiments demonstrate that IT-RAP successfully disrupts deep
 
 
 <img width="350" alt="figure3" src="https://github.com/user-attachments/assets/1b57b727-ed88-4ed5-872d-9869fcef6efc" />
+<img width="350" alt="figure3" src="https://github.com/user-attachments/assets/8a10db90-1266-4844-b450-3d2aba176749" />
 <img width="500" alt="figure6" src="https://github.com/user-attachments/assets/d23d98a0-1112-4961-beb3-8a91d75070d0" />
 
 
