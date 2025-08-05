@@ -50,7 +50,7 @@ Below are detailed instructions for the four possible training combinations.
 
 <br>
 
-### **1. StarGAN with CelebA Dataset**
+#### **1. StarGAN with CelebA Dataset**
 
 This method trains the **StarGAN** model using the CelebA dataset. In the `[Local] execute_file.py` file, enable the CelebA dataset code and set the execution file to `stargan_main.py`.
 
@@ -81,7 +81,7 @@ os.system(
 
 <br>
 
-### **2. AttGAN with CelebA Dataset**
+#### **2. AttGAN with CelebA Dataset**
 
 This method trains the **AttGAN** model using the CelebA dataset. Use the same code block as in method 1, but change the execution file to `attgan_main.py`.
 
@@ -109,7 +109,7 @@ os.system(
 
 <br>
 
-### **3. StarGAN with MAAD-Face Dataset**
+#### **3. StarGAN with MAAD-Face Dataset**
 
 This method trains the **StarGAN** model using the MAAD-Face dataset. In `[Local] execute_file.py`, uncomment the MAAD-Face dataset code and set the execution file to `stargan_main.py`.
 
@@ -137,7 +137,7 @@ os.system(
 
 <br>
 
-### **4. AttGAN with MAAD-Face Dataset**
+#### **4. AttGAN with MAAD-Face Dataset**
 
 This method trains the **AttGAN** model using the MAAD-Face dataset. Activate the MAAD-Face code block as in method 3 and ensure the execution file is `attgan_main.py`.
 
