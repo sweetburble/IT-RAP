@@ -330,7 +330,8 @@ process = subprocess.Popen(
 Other hyperparameters, such as the number of inference images (`--inference_image_num`), and selected attributes (`--selected_attrs`), can be modified directly within the `[Infer] execute_file_infer.py` script to suit your experimental requirements.
 
 ## Results
-
+The figure below illustrates the trade-off between effectiveness and imperceptibility. While increasing λ boosts effectiveness (higher L2 error) at the cost of imperceptibility (lower PSNR) , perturbations remain visually unnoticeable at a PSNR of over 25.
+<img width="2809" height="1540" alt="Image" src="https://github.com/user-attachments/assets/6c831395-01f8-48b4-97b6-e9e3e08f959b" />
 <!-- 논문 2장에서 나온 내용 중 일부 핵심 내용을 가져와도 되고, Disrupting Deepfakes 또는 DF-RAP 논문만 언급하면 좋을 듯합니다. -->
 
 ## Related Works
