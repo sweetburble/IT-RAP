@@ -395,6 +395,7 @@ The figure below illustrates the trade-off between effectiveness and imperceptib
 </table>
 
 
+
 <!-- 논문 2장에서 나온 내용 중 일부 핵심 내용을 가져와도 되고, Disrupting Deepfakes 또는 DF-RAP 논문만 언급하면 좋을 듯합니다. -->
 
 ## Related Works
