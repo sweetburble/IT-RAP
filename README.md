@@ -410,10 +410,10 @@ Our work, IT-RAP, builds upon previous research focused on creating adversarial 
 
 Our work is based on:
 
-**[Deepfake model]   
+**[Deepfake model]**   
 -   [StarGAN](https://github.com/yunjey/stargan)   
 -   [AttGAN](https://github.com/elvisyjlin/AttGAN-PyTorch)
 
-**[Adversarial Perturbation]   
+**[Adversarial Perturbation]**   
 -   [Disrupting Deepfakes](https://github.com/natanielruiz/disrupting-deepfakes)   
 -   [DF-RAP](https://github.com/ZOMIN28/DF_RAP)
