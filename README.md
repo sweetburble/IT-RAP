@@ -9,7 +9,7 @@ Our comprehensive experiments demonstrate that IT-RAP successfully disrupts deep
 
 "IT-RAP: overview"
 
-<img width="500" alt="figure6" src="https://github.com/user-attachments/assets/9a0e9cda-f8f4-4470-b08c-a91219d901fc" />
+<img width="700" alt="figure6" src="https://github.com/user-attachments/assets/9a0e9cda-f8f4-4470-b08c-a91219d901fc" />
 
 The figure below shows the situation in which deepfakes are defended using adversarial perturbations, and the situation in which image transformation degrades the effectiveness of the perturbation by reducing its defense capability
 
