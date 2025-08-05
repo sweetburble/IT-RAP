@@ -333,7 +333,7 @@ Other hyperparameters, such as the number of inference images (`--inference_imag
 The figure below illustrates the trade-off between effectiveness and imperceptibility. While increasing λ boosts effectiveness (higher L2 error) at the cost of imperceptibility (lower PSNR) , perturbations remain visually unnoticeable at a PSNR of over 25.
 <img width="2809" height="1540" alt="Image" src="https://github.com/user-attachments/assets/6c831395-01f8-48b4-97b6-e9e3e08f959b" />
 
-
+Table that shows the relative improvement of ITRAP over PGD and DF-RAP using the L2 error metric. Each comparison reflects how much ITRAP improves over the underlying attack in two settings, where we averaged across five transformation types without image transformation.
 <table>
   <thead>
     <tr>
