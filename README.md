@@ -404,7 +404,7 @@ Our work, IT-RAP, builds upon previous research focused on creating adversarial 
 
 -   **[DF-RAP (Qu et al., 2024)](https://github.com/ZOMIN28/DF_RAP)**: This study highlighted that adversarial perturbations can be significantly weakened by lossy compression, such as that used by online social networks. It underscores the importance of creating perturbations that are robust not just to simple transformations but also to compression artifacts, which is a key goal of our project.
 
-## License
+
 
 ## Acknowledges
 
