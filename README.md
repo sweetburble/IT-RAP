@@ -415,5 +415,5 @@ Our work is based on:
 [2] [AttGAN](https://github.com/elvisyjlin/AttGAN-PyTorch)
 
 [Adversarial Perturbation]   
-[1] [Disrupting](https://github.com/natanielruiz/disrupting-deepfakes)   
+[1] [Disrupting Deepfakes](https://github.com/natanielruiz/disrupting-deepfakes)   
 [2] [DF-RAP](https://github.com/ZOMIN28/DF_RAP)
