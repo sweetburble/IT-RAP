@@ -337,12 +337,9 @@ The figure below illustrates the trade-off between effectiveness and imperceptib
 <table>
   <thead>
     <tr>
-      <th rowspan="2">Dataset</th>
-      <th rowspan="2">Target Model</th>
-      <th rowspan="2">Improvement Over<br>PGD / DF-RAP</th>
-      <th colspan="2">ASR Gain</th>
-    </tr>
-    <tr>
+      <th>Dataset</th>
+      <th>Target Model</th>
+      <th>Improvement Over<br>PGD / DF-RAP</th>
       <th>w/o Image Trans.</th>
       <th>Image Trans. (Avg.)</th>
     </tr>
@@ -371,8 +368,32 @@ The figure below illustrates the trade-off between effectiveness and imperceptib
       <td><b>99.19%</b></td>
       <td>10.62%</td>
     </tr>
+    <tr>
+      <td rowspan="4">MAAD-Face</td>
+      <td rowspan="2">StarGAN</td>
+      <td>PGD → ITRAP</td>
+      <td>1.53%</td>
+      <td><b>46.82%</b></td>
+    </tr>
+    <tr>
+      <td>DF-RAP → ITRAP</td>
+      <td><b>360.17%</b></td>
+      <td>56.68%</td>
+    </tr>
+    <tr>
+      <td rowspan="2">AttGAN</td>
+      <td>PGD → ITRAP</td>
+      <td>1.97%</td>
+      <td><b>5.55%</b></td>
+    </tr>
+    <tr>
+      <td>DF-RAP → ITRAP</td>
+      <td><b>66.34%</b></td>
+      <td>0.65%</td>
+    </tr>
   </tbody>
 </table>
+
 
 <!-- 논문 2장에서 나온 내용 중 일부 핵심 내용을 가져와도 되고, Disrupting Deepfakes 또는 DF-RAP 논문만 언급하면 좋을 듯합니다. -->
 
