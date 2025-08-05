@@ -334,16 +334,46 @@ The figure below illustrates the trade-off between effectiveness and imperceptib
 <img width="2809" height="1540" alt="Image" src="https://github.com/user-attachments/assets/6c831395-01f8-48b4-97b6-e9e3e08f959b" />
 
 
-| Dataset | Target Model | Improvement Over PGD / DF-RAP | w/o Image Trans. | Image Trans. (Avg.) |
-| :--- | :--- | :--- | :--- | :--- |
-| CelebA | StarGAN | PGD → IT-RAP | 8.66% | **25.11%** |
-| | StarGAN | DF-RAP → IT-RAP | **407.14%** | 103.38% |
-| | AttGAN | PGD → IT-RAP | 92.69% | **114.01%** |
-| | AttGAN | DF-RAP → IT-RAP | **99.19%** | 10.62% |
-| MAAD-Face | StarGAN | PGD → IT-RAP | 1.53% | **46.82%** |
-| | StarGAN | DF-RAP → IT-RAP | **360.17%** | 56.68% |
-| | AttGAN | PGD → IT-RAP | 1.97% | **5.55%** |
-| | AttGAN | DF-RAP → IT-RAP | **66.34%** | 0.65% |
+<table>
+  <thead>
+    <tr>
+      <th rowspan="2">Dataset</th>
+      <th rowspan="2">Target Model</th>
+      <th rowspan="2">Improvement Over<br>PGD / DF-RAP</th>
+      <th colspan="2">ASR Gain</th>
+    </tr>
+    <tr>
+      <th>w/o Image Trans.</th>
+      <th>Image Trans. (Avg.)</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td rowspan="4">CelebA</td>
+      <td rowspan="2">StarGAN</td>
+      <td>PGD → ITRAP</td>
+      <td>8.66%</td>
+      <td><b>25.11%</b></td>
+    </tr>
+    <tr>
+      <td>DF-RAP → ITRAP</td>
+      <td><b>407.14%</b></td>
+      <td>103.38%</td>
+    </tr>
+    <tr>
+      <td rowspan="2">AttGAN</td>
+      <td>PGD → ITRAP</td>
+      <td>92.69%</td>
+      <td><b>114.01%</b></td>
+    </tr>
+    <tr>
+      <td>DF-RAP → ITRAP</td>
+      <td><b>99.19%</b></td>
+      <td>10.62%</td>
+    </tr>
+  </tbody>
+</table>
+
 <!-- 논문 2장에서 나온 내용 중 일부 핵심 내용을 가져와도 되고, Disrupting Deepfakes 또는 DF-RAP 논문만 언급하면 좋을 듯합니다. -->
 
 ## Related Works
