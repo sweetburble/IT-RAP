@@ -393,6 +393,7 @@ Table that shows the relative improvement of ITRAP over PGD and DF-RAP using the
 </table>
 
 
+For comparison of results by Dataset and comparison of results by Deepfake model, refer to the [Results](https://github.com/sweetburble/IT-RAP/tree/main/Results) fold
 
 <!-- 논문 2장에서 나온 내용 중 일부 핵심 내용을 가져와도 되고, Disrupting Deepfakes 또는 DF-RAP 논문만 언급하면 좋을 듯합니다. -->
 
