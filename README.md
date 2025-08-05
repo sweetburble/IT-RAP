@@ -9,7 +9,7 @@ Our comprehensive experiments demonstrate that IT-RAP successfully disrupts deep
 
 "IT-RAP: overview"
 
-<img width="700" alt="figure6" src="https://github.com/user-attachments/assets/9a0e9cda-f8f4-4470-b08c-a91219d901fc" />
+<img width="1200" alt="figure6" src="https://github.com/user-attachments/assets/9a0e9cda-f8f4-4470-b08c-a91219d901fc" />
 
 The figure below shows the situation in which deepfakes are defended using adversarial perturbations, and the situation in which image transformation degrades the effectiveness of the perturbation by reducing its defense capability
 
@@ -331,7 +331,7 @@ Other hyperparameters, such as the number of inference images (`--inference_imag
 
 ## Results
 The figure below illustrates the trade-off between effectiveness and imperceptibility. While increasing λ boosts effectiveness (higher L2 error) at the cost of imperceptibility (lower PSNR) , perturbations remain visually unnoticeable at a PSNR of over 25.
-<img width="2809" height="1540" alt="Image" src="https://github.com/user-attachments/assets/6c831395-01f8-48b4-97b6-e9e3e08f959b" />
+<img width="2809" height="1200" alt="Image" src="https://github.com/user-attachments/assets/6c831395-01f8-48b4-97b6-e9e3e08f959b" />
 
 Table that shows the relative improvement of ITRAP over PGD and DF-RAP using the L2 error metric. Each comparison reflects how much ITRAP improves over the underlying attack in two settings, where we averaged across five transformation types without image transformation.
 <table>
