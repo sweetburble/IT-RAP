@@ -416,4 +416,4 @@ Our work is based on:
 
 [Adversarial Perturbation]
 [1] [Disrupting](https://github.com/natanielruiz/disrupting-deepfakes)
-[2] [DF-RAP]([https://github.com/mlomnitz/DiffJPEG](https://github.com/ZOMIN28/DF_RAP))
+[2] [DF-RAP](https://github.com/ZOMIN28/DF_RAP)
