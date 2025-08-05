@@ -333,7 +333,11 @@ Other hyperparameters, such as the number of inference images (`--inference_imag
 
 ## Related Works
 
-<!-- 논문 2장에서 나온 내용 중 일부 핵심 내용을 가져와도 되고, Disrupting Deepfakes 또는 DF-RAP 논문만 언급하면 좋을 듯합니다. -->
+Our work, IT-RAP, builds upon previous research focused on creating adversarial perturbations to defend against deepfake models. Below are some of the key studies that inspired our approach:
+
+-   **[Disrupting Deepfakes (Ruiz et al., 2020)](https://github.com/natanielruiz/disrupting-deepfakes)**: This work introduced a PGD-based spatial domain attack to protect images from unauthorized manipulation. However, as noted in our research, these perturbations are often vulnerable to common image transformations, a challenge that our IT-RAP framework directly addresses.
+
+-   **[DF-RAP (Qu et al., 2024)](https://github.com/ZOMIN28/DF_RAP)**: This study highlighted that adversarial perturbations can be significantly weakened by lossy compression, such as that used by online social networks. It underscores the importance of creating perturbations that are robust not just to simple transformations but also to compression artifacts, which is a key goal of our project.
 
 ## License
 
