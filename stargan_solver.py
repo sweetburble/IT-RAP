@@ -580,9 +580,6 @@ class SolverRainbow(object):
 
 
 
-
-
-
     def build_model(self):
         """Create Generator and Discriminator."""
         self.G = Generator(self.g_conv_dim, self.c_dim, self.g_repeat_num)
