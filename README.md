@@ -8,8 +8,8 @@ This allows the agent to discover optimal strategies for perturbation and improv
 Our comprehensive experiments demonstrate that IT-RAP successfully disrupts deepfakes with an average success rate of 64.62% when targeting various image transformations.
 
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/8a10db90-1266-4844-b450-3d2aba176749" width="38.5%">
-  <img src="https://github.com/user-attachments/assets/9a0e9cda-f8f4-4470-b08c-a91219d901fc" width="60.5%">
+  <img src="https://github.com/user-attachments/assets/8a10db90-1266-4844-b450-3d2aba176749" width="37.5%">
+  <img src="https://github.com/user-attachments/assets/9a0e9cda-f8f4-4470-b08c-a91219d901fc" width="61.5%">
 </p>
 
 
