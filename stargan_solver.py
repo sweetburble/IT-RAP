@@ -240,8 +240,11 @@ class PrioritizedReplayBuffer(object):
 
 """SolverRainbow for training and testing StarGAN and Rainbow DQN Attack."""
 class SolverRainbow(object):
-    def __init__(self, dataset_loader, config):
+    def __init__(self, dataset_loader, config, run = None):
         self.config = config # For Optuna
+
+        # neptune logging
+        self.run = run 
 
         # Parameters related to Data loader
         self.dataset_loader = dataset_loader
@@ -797,7 +800,7 @@ class SolverRainbow(object):
         base = g_l2 * (eta + (1.0 - eta) * g_ssim)
         total_reward = base - lam * pen_ssim
         # total_reward = max(-1.0, min(1.0, total_reward))  # optionally clip the reward to [-1, 1]
-        
+
         print(f"[total Reward] L2={defense_l2_loss:.4f}, lpips={invisibility_lpips:.4f}, ssim={invisibility_ssim}, total_reward={total_reward}")
         return total_reward, defense_l1_loss, defense_l2_loss, defense_lpips, invisibility_ssim, invisibility_psnr, invisibility_lpips
 
@@ -1007,8 +1010,20 @@ class SolverRainbow(object):
                     # 5. Calculate Reward
                     reward, defense_l1_loss, defense_l2_loss, defense_lpips, invisibility_ssim, invisibility_psnr, invisibility_lpips = self.calculate_reward(original_gen_image, perturbed_gen_image, x_real, perturbed_image, c_trg)
 
-                    total_reward_this_episode += reward.item() # To obtain the reward trend plot
-                    
+                    # neptune logging
+                    if self.run is not None:
+                        self.run["train/reward"].append(float(reward))
+                        self.run["train/L1"].append(float(defense_l1_loss))
+                        self.run["train/L2"].append(float(defense_l2_loss))
+                        self.run["train/LPIPS"].append(float(invisibility_lpips))
+                        self.run["train/SSIM"].append(float(invisibility_ssim))
+
+                    # To obtain the reward trend plot
+                    if isinstance(reward, torch.Tensor):
+                        total_reward_this_episode += reward.item()
+                    else:
+                        total_reward_this_episode += reward                    
+
 
                     reward_tensor = torch.tensor([reward.detach()], dtype=torch.float32).to(self.device) # Convert reward to a tensor
 
@@ -1219,8 +1234,9 @@ class SolverRainbow(object):
             print(f"[!] Error saving Rainbow DQN agent weights and optimizer weights: {e}")
         print(f"[INFO] Finished saving Rainbow DQN agent weights and optimizer weights: {checkpoint_path}")
 
-
-
+        # neptune logging
+        if self.run is not None:
+            self.run.stop()
 
     """Helper function to create an N-step transition"""
     def _get_n_step_transition(self, n_step_buffer):
