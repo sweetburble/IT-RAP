@@ -1,3 +1,4 @@
+import neptune
 import os
 import argparse
 from torch.backends import cudnn
@@ -14,6 +15,12 @@ def str2bool(v):
 def main(config):
     # For fast training
     cudnn.benchmark = True
+    
+    # neptune logging
+    run = neptune.init_run(
+        project="your_workspace/your_project", # Replace with your Neptune.ai project
+        api_token="YOUR_NEPTUNE", # Replace with your Neptune.ai API token
+    )
 
     # Create directories if not exist
     if not os.path.exists(config.log_dir):
@@ -37,7 +44,7 @@ def main(config):
                                 config.celeba_crop_size, config.image_size, config.batch_size,
                                 'MAADFace', config.mode, config.num_workers, config.start_index)
 
-    solver = SolverRainbow(dataset_loader, config)
+    solver = SolverRainbow(dataset_loader, config, run = run)
 
     if config.mode == 'train':
         solver.train_attack()
