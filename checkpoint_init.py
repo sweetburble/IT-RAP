@@ -3,7 +3,7 @@ from torch.optim import Adam
 from stargan_solver import RainbowDQNNet  # This is defined by the user
 
 # Configuration values must match the current config being used
-state_dim = 128  # In case of being based on Mesonet
+state_dim = 1024  # MesoNet:64, VGG19:65536, ResNet50:262144, GhostFaceNets:1024
 action_dim = 4
 atom_size = 11
 v_min = -5

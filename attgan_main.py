@@ -114,7 +114,7 @@ if __name__ == '__main__':
     parser.add_argument('--max_steps_per_episode', type=int, default=20, help='max steps per episode')
     parser.add_argument('--action_dim', type=int, default=4, help='max action dimension')
     parser.add_argument('--noise_level', type=float, default=0.005, help='noise level for RLAB perturbation')
-    parser.add_argument('--feature_extractor_name', type=str, default="mesonet", help='Image feature extraction for State (mesonet, resnet50, vgg19)')
+    parser.add_argument('--feature_extractor_name', type=str, default="ghostfacenets", help='Image feature extraction for State (mesonet, resnet50, vgg19, ghostfacenets)')
 
 
     parser.add_argument('--alpha', type=float, default=0.8, help='PER alpha parameter')

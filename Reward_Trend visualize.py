@@ -15,10 +15,10 @@ def extract_rewards_from_file(file_path):
 
 # === 2. List of file paths ===
 file_paths = [
-    # ("C:\\Users\\seolp\\Desktop\\1.txt", "CelebA 100 images | StarGAN", "tab:orange"), # 1 
-    # ("C:\\Users\\seolp\\Desktop\\3.txt", "CelebA 100 images | AttGAN", "tab:blue"), # 3
-    ("C:\\Users\\Bandi\\Desktop\\stargan & attgan\\result_test\\[stargan]reward_moving_avg.txt", "MAAD 100 images | StarGAN", "tab:orange"), # 2
-    ("C:\\Users\\Bandi\\Desktop\\stargan & attgan\\result_test\\[attgan]reward_moving_avg.txt", "MAAD 100 images | AttGAN", "tab:blue") # 4
+    ("C:\\Users\\Bandi\\Desktop\\Fork\\IT-RAP\\test_result_images\\20251108_2330\\reward_moving_avg.txt", "CelebA 100 images | StarGAN", "tab:orange"), # 1 
+    ("C:\\Users\\Bandi\\Desktop\\Fork\\IT-RAP\\test_result_images\\20251109_1757\\reward_moving_avg.txt", "CelebA 100 images | AttGAN", "tab:blue"), # 3
+    ("C:\\Users\\Bandi\\Desktop\\Fork\\IT-RAP\\test_result_images\\20251109_1739\\reward_moving_avg.txt", "MAAD 100 images | StarGAN", "tab:orange"), # 2
+    ("C:\\Users\\Bandi\\Desktop\\Fork\\IT-RAP\\test_result_images\\20251109_1749\\reward_moving_avg.txt", "MAAD 100 images | AttGAN", "tab:blue") # 4
 ]
 
 window_size = 50

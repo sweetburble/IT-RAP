@@ -1,4 +1,3 @@
-from sympy import per
 from stargan_model import Generator, Discriminator
 from torchvision.utils import save_image
 import torch
@@ -11,6 +10,7 @@ import random
 import math
 import gc
 import time
+from torchvision import transforms
 
 from torchvision.models import vgg19, resnet50, VGG19_Weights, ResNet50_Weights
 
@@ -29,6 +29,8 @@ from img_trans_methods import compress_jpeg, denoise_opencv, denoise_scikit, ran
 from segment_tree import MinSegmentTree, SumSegmentTree # PrioritizedReplayBuffer
 
 from meso_net import Meso4, MesoInception4, convert_tf_weights_to_pytorch
+
+from ellzaf_ml.models import GhostFaceNetsV2
 
 # To maintain test reproducibility
 np.random.seed(0)
@@ -389,7 +391,7 @@ class SolverRainbow(object):
                         original_gen_image, _ = self.G(x_real, c_trg)
                         perturbed_gen_image, _ = self.G(perturbed_image, c_trg)
 
-                    state = self.get_state(x_real, perturbed_image, original_gen_image, perturbed_gen_image)
+                    state = self.get_state(perturbed_image, perturbed_gen_image)
                     
                     with torch.no_grad():
                         action = self.rl_agent.select_action(state).item()
@@ -608,6 +610,11 @@ class SolverRainbow(object):
             meso_inception4_model = MesoInception4()
             convert_tf_weights_to_pytorch("./weights/MesoInception_DF.h5", meso_inception4_model, 'mesoinception4')
             self.meso4_inception_extractor = meso_inception4_model.to(device).eval()
+        elif self.feature_extractor_name == "ghostfacenets":
+            # GhostFaceNetsV2 모델을 임베딩 추출 모드로 불러옵니다.
+            # 입력 이미지 크기는 256x256이며, width=1, dropout=0.으로 설정합니다.
+            model = GhostFaceNetsV2(image_size=256, width=1, dropout=0.)
+            self.feature_extractor = model.to(device).eval()
         else:
             raise ValueError("Invalid FEATURE_EXTRACTOR_NAME")
 
@@ -619,13 +626,14 @@ class SolverRainbow(object):
 
         # Configure Rainbow DQN Agent
         if (self.feature_extractor_name == "vgg19"):
-            state_dim = 131072
+            state_dim = 65536
         elif (self.feature_extractor_name == "resnet50"):
-            state_dim = 524288
+            state_dim = 262144
         elif (self.feature_extractor_name == "mesonet"):
-            state_dim = 128
+            state_dim = 64
         else:
-            state_dim = 128
+            # ghostfacenets = 512
+            state_dim = 1024
 
         # Variable to be used in select_action()
         initial_ratio_steps = self.max_steps_per_episode * self.training_image_num * 5 // 10
@@ -759,64 +767,56 @@ class SolverRainbow(object):
         
         1. Using VGG-19 model
         Output dimension: 256x256 input image -> [1, 512, 8, 8] feature map -> [1, 32768] flattened
-        Final output when combining 4 images: [1, 131072]
+        Final output when combining 2 images: [1, 65536]
 
         2. Using ResNet50 model
         Output dimension: 256x256 input image -> [1, 2048, 8, 8] feature map -> [1, 131072] flattened
-        Final output when combining 4 images: [1, 524288]
+        Final output when combining 2 images: [1, 262144]
 
         3. Using MesoNet model
-        Final output when combining 4 images: [1, 128]
+        Final output when combining 2 images: [1, 64]
+
+        4. Using GhostFaceNets model
+        Output dimension: 256x256 input image -> [1, 512] embedding vector
+        Final output when combining 2 images: [1, 1024]
     """
-    def get_state(self, x_real, perturbed_image, original_gen_image, perturbed_gen_image):
-        # # Convert input image range from [-1, 1] to [0, 1]
-        # x_real_norm = (x_real + 1) / 2
-        # perturbed_image_norm = (perturbed_image + 1) / 2
-        # original_gen_image_norm = (original_gen_image + 1) / 2
-        # perturbed_gen_image_norm = (perturbed_gen_image + 1) / 2
+    def get_state(self, perturbed_image, perturbed_gen_image):
+        # Convert input image range from [-1, 1] to [0, 1]
+        perturbed_image_norm = (perturbed_image + 1) / 2
+        perturbed_gen_image_norm = (perturbed_gen_image + 1) / 2
         
-        # # Normalize with ImageNet mean and standard deviation
-        # normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], 
-        #                                 std=[0.229, 0.224, 0.225])
-        # x_real_norm = normalize(x_real_norm)
-        # perturbed_image_norm = normalize(perturbed_image_norm)
-        # original_gen_image_norm = normalize(original_gen_image_norm)
-        # perturbed_gen_image_norm = normalize(perturbed_gen_image_norm)
+        # Normalize with ImageNet mean and standard deviation
+        normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], 
+                                        std=[0.229, 0.224, 0.225])
+        perturbed_image_norm = normalize(perturbed_image_norm)
+        perturbed_gen_image_norm = normalize(perturbed_gen_image_norm)
 
-        # # Extract features from images
-        # with torch.no_grad():
-        #     real_features = self.feature_extractor(x_real_norm)
-        #     perturbed_features = self.feature_extractor(perturbed_image_norm)
-        #     original_gen_features = self.feature_extractor(original_gen_image_norm)
-        #     perturbed_gen_features = self.feature_extractor(perturbed_gen_image_norm)
-        
-        # # Flatten feature vectors
-        # real_features = real_features.view(real_features.size(0), -1)
-        # perturbed_features = perturbed_features.view(perturbed_features.size(0), -1)
-        # original_gen_features = original_gen_features.view(original_gen_features.size(0), -1)
-        # perturbed_gen_features = perturbed_gen_features.view(perturbed_gen_features.size(0), -1)
-        
-        # # Concatenate feature vectors
-        # combined_features = torch.cat([real_features, perturbed_features, original_gen_features, perturbed_gen_features], dim=1)
-        
-        # return combined_features
-
-        # Use Meso4 + Meso4Inception
+        # Extract features from images
         with torch.no_grad():
-            meso4_features_real = self.meso4_extractor.extract_features(x_real)
-            meso4_features_perturbed = self.meso4_extractor.extract_features(perturbed_image)
-            meso4_features_original_gen = self.meso4_extractor.extract_features(original_gen_image)
-            meso4_features_perturbed_gen = self.meso4_extractor.extract_features(perturbed_gen_image)
-
-            meso4_inception_features_real = self.meso4_inception_extractor.extract_features(x_real)
-            meso4_inception_features_perturbed = self.meso4_inception_extractor.extract_features(perturbed_image)
-            meso4_inception_features_original_gen = self.meso4_inception_extractor.extract_features(original_gen_image)
-            meso4_inception_features_perturbed_gen = self.meso4_inception_extractor.extract_features(perturbed_gen_image)
-
-        # Combine all features from Meso4 (total 128 dimensions)
-        combined_features = torch.cat([meso4_features_real, meso4_features_perturbed, meso4_features_original_gen, meso4_features_perturbed_gen, meso4_inception_features_real, meso4_inception_features_perturbed, meso4_inception_features_original_gen, meso4_inception_features_perturbed_gen], dim=1)
-
+            perturbed_features = self.feature_extractor(perturbed_image_norm)
+            perturbed_gen_features = self.feature_extractor(perturbed_gen_image_norm)
+        
+        # Flatten feature vectors
+        perturbed_features = perturbed_features.view(perturbed_features.size(0), -1)
+        perturbed_gen_features = perturbed_gen_features.view(perturbed_gen_features.size(0), -1)
+        
+        # Concatenate feature vectors
+        combined_features = torch.cat([perturbed_features, perturbed_gen_features], dim=1)
+        
         return combined_features
+
+        # # Use Meso4 + Meso4Inception
+        # with torch.no_grad():
+        #     meso4_features_perturbed = self.meso4_extractor.extract_features(perturbed_image)
+        #     meso4_features_perturbed_gen = self.meso4_extractor.extract_features(perturbed_gen_image)
+
+        #     meso4_inception_features_perturbed = self.meso4_inception_extractor.extract_features(perturbed_image)
+        #     meso4_inception_features_perturbed_gen = self.meso4_inception_extractor.extract_features(perturbed_gen_image)
+
+        # # Combine all features from Meso4 (total 64 dimensions)
+        # combined_features = torch.cat([meso4_features_perturbed, meso4_features_perturbed_gen, meso4_inception_features_perturbed, meso4_inception_features_perturbed_gen], dim=1)
+
+        # return combined_features
 
 
     """Performs the RLAB attack (Rainbow DQN Agent)"""
@@ -915,7 +915,7 @@ class SolverRainbow(object):
                     frame_idx += 1 # Increment frame_idx (for PER beta annealing)
 
                     # 1. Calculate State
-                    state = self.get_state(x_real, perturbed_image, original_gen_image, perturbed_gen_image)
+                    state = self.get_state(perturbed_image, perturbed_gen_image)
 
                     # 2. Select Action (Rainbow DQN Agent)
                     action = self.rl_agent.select_action(state) # NoisyNet does not use Epsilon-greedy
@@ -959,7 +959,7 @@ class SolverRainbow(object):
                     total_reward_this_episode += reward.item() # To obtain the reward trend plot
                     
 
-                    reward_tensor = torch.tensor([reward], dtype=torch.float32).to(self.device) # Convert reward to a tensor
+                    reward_tensor = torch.tensor([reward.detach()], dtype=torch.float32).to(self.device) # Convert reward to a tensor
 
                     # print(f"[DEBUG] Reward calculated in this step {step+1}: {reward.item()}, Deepfake Defense L1 Loss: {defense_l1_loss.item()}, Deepfake Defense L2 Loss: {defense_l2_loss:.5f}, Deepfake Defense LPIPS: {defense_lpips.item()}")
 
@@ -967,7 +967,7 @@ class SolverRainbow(object):
 
 
                     # 6. Calculate Next State (same as current state, or the state of the next step)
-                    next_state = self.get_state(x_real, perturbed_image, original_gen_image, perturbed_gen_image)
+                    next_state = self.get_state(perturbed_image, perturbed_gen_image)
 
 
                     # N-step buffer for test_attack episode

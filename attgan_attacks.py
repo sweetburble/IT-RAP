@@ -1,8 +1,6 @@
 import torch
 import torch.nn as nn
 
-from torch.autograd import Variable as V
-
 import torch_dct as dct
 
 """
