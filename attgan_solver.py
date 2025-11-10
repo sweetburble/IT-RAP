@@ -764,7 +764,7 @@ class SolverRainbow(object):
         # Convert input image range from [-1, 1] to [0, 1]
         perturbed_image_norm = (perturbed_image + 1) / 2
         perturbed_gen_image_norm = (perturbed_gen_image + 1) / 2
-        
+
         # Normalize with ImageNet mean and standard deviation
         normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], 
                                         std=[0.229, 0.224, 0.225])
