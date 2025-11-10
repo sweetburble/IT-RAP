@@ -740,8 +740,8 @@ class SolverRainbow(object):
         ### a. Effectiveness
         # Randomly apply "image transformations" to original_gen_image and perturbed_gen_image each time, and calculate the difference between them.
         transformed_x_real, transformed_perturbed_image = apply_random_transform(x_real, perturbed_image)
-        transformed_original, _ = self.G(transformed_x_real, c_trg)
-        transformed_perturbed, _ = self.G(transformed_perturbed_image, c_trg)
+        transformed_original = attgan_model.G(transformed_x_real, c_trg, mode='enc-dec')
+        transformed_perturbed = attgan_model.G(transformed_perturbed_image, c_trg, mode='enc-dec')
         defense_l1_loss = F.l1_loss(transformed_original, transformed_perturbed)
         defense_l2_loss = F.mse_loss(transformed_original, transformed_perturbed)
         defense_lpips = self.lpips_loss(transformed_original, transformed_perturbed).mean()
@@ -756,7 +756,7 @@ class SolverRainbow(object):
             invisibility_psnr = psnr(x_real.squeeze().cpu().numpy(), perturbed_image.squeeze().cpu().numpy(), data_range=1.0)
         invisibility_ssim = ssim(x_real.squeeze().cpu().numpy(), perturbed_image.squeeze().cpu().numpy(), data_range=1.0, win_size=3, channel_axis=0, multichannel=True) # Specify channel axis.
         invisibility_lpips = self.lpips_loss(perturbed_image, x_real).mean()
- 
+
         # parameter setting
         tau_eff = 0.05   # effectiveness threshold
         tau_ssim, m_ssim = 0.96, 0.02   # SSIM margin
@@ -1030,7 +1030,7 @@ class SolverRainbow(object):
                         total_reward_this_episode += reward      
 
 
-                    reward_tensor = torch.tensor([reward.detach()], dtype=torch.float32).to(self.device) # Convert reward to a tensor
+                    reward_tensor = torch.tensor([reward], dtype=torch.float32).to(self.device) # Convert reward to a tensor
 
                     # print(f"[DEBUG] Reward calculated in this step {step+1}: {reward.item()}, Deepfake Defense L1 Loss: {defense_l1_loss.item()}, Deepfake Defense L2 Loss: {defense_l2_loss:.5f}, Deepfake Defense LPIPS: {defense_lpips.item()}")
 
