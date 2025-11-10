@@ -243,9 +243,12 @@ class PrioritizedReplayBuffer(object):
 
 """SolverRainbow for training and testing StarGAN and Rainbow DQN Attack."""
 class SolverRainbow(object):
-    def __init__(self, dataset_loader, config):
+    def __init__(self, dataset_loader, config, run = None):
         self.config = config # For Optuna
-
+        
+        # neptune logging
+        self.run = run 
+        
         # Parameters related to Data loader
         self.dataset_loader = dataset_loader
 
@@ -686,51 +689,102 @@ class SolverRainbow(object):
             c_trg_list.append(c_trg.to(self.device))
         return c_trg_list
 
-    """
-        Calculates the reward.
-        LPIPS: A value between [0, 1]. The lower the value, the more similar the two images are. 
-               Generally, an LPIPS value greater than 0.5 is considered to indicate a human-observable difference between two images.
-    """
+    # """
+    #     Calculates the reward.
+    #     LPIPS: A value between [0, 1]. The lower the value, the more similar the two images are. 
+    #            Generally, an LPIPS value greater than 0.5 is considered to indicate a human-observable difference between two images.
+    # """
+    # def calculate_reward(self, original_gen_image, perturbed_gen_image, x_real, perturbed_image, c_trg):
+    #     # 1. Deepfake Defense Reward
+    #     # Use the difference between StarGAN generated images (L1, L2, LPIPS) as a reward.
+    #     # Randomly apply "image transformations" to original_gen_image and perturbed_gen_image each time, and calculate the difference between them.
+    #     transformed_x_real, transformed_perturbed_image = apply_random_transform(x_real, perturbed_image)
+    #     transformed_original = attgan_model.G(transformed_x_real, c_trg, mode='enc-dec')
+    #     transformed_perturbed = attgan_model.G(transformed_perturbed_image, c_trg, mode='enc-dec')
+
+
+    #     defense_l1_loss = F.l1_loss(transformed_original, transformed_perturbed)
+    #     defense_l2_loss = F.mse_loss(transformed_original, transformed_perturbed)
+
+    #     defense_lpips = self.lpips_loss(transformed_original, transformed_perturbed).mean()
+
+    #     # Scale and apply based on L1 Error = [0, 131,072] / L2 Error = [0, 512] / LPIPS = [0, 1]
+    #     reward_defense = ((defense_l1_loss / 10) + (defense_l2_loss / 5) + defense_lpips) * 5
+
+    #     # 2. Noise Invisibility Reward
+    #     # Use the similarity between the noisy image and the original image as a reward (PSNR, SSIM, LPIPS).
+    #     x_real_np = x_real.squeeze().cpu().numpy()
+    #     perturbed_image_np = perturbed_image.squeeze().cpu().numpy()
+
+    #     if np.array_equal(x_real_np, perturbed_image_np):
+    #         invisibility_psnr = 100.0 # Assign max PSNR if the two images are identical
+    #     else:
+    #         invisibility_psnr = psnr(x_real.squeeze().cpu().numpy(), perturbed_image.squeeze().cpu().numpy(), data_range=1.0)
+
+    #     invisibility_ssim = ssim(x_real.squeeze().cpu().numpy(), perturbed_image.squeeze().cpu().numpy(), data_range=1.0, win_size=3, channel_axis=0, multichannel=True) # Specify channel axis
+
+    #     invisibility_lpips = self.lpips_loss(perturbed_image, x_real).mean()
+
+    #     # Scale and apply based on PSNR = [0, 100] / SSIM = [-1, 1] / LPIPS = [0, 1]
+    #     reward_invisibility = (0.01 * invisibility_psnr) + invisibility_ssim + (1 - invisibility_lpips)
+
+    #     # Final Reward Combination (Since the two rewards are in a trade-off relationship, adjust weights while keeping the sum fixed at 1.0)
+    #     w_defense = self.reward_weight
+    #     w_invisibility = 1.0 - w_defense
+    #     total_reward = w_defense * reward_defense + w_invisibility * reward_invisibility
+
+    #     return total_reward, defense_l1_loss, defense_l2_loss, defense_lpips, invisibility_ssim, invisibility_psnr, invisibility_lpips
+
+
     def calculate_reward(self, original_gen_image, perturbed_gen_image, x_real, perturbed_image, c_trg):
-        # 1. Deepfake Defense Reward
-        # Use the difference between StarGAN generated images (L1, L2, LPIPS) as a reward.
+        ### a. Effectiveness
         # Randomly apply "image transformations" to original_gen_image and perturbed_gen_image each time, and calculate the difference between them.
         transformed_x_real, transformed_perturbed_image = apply_random_transform(x_real, perturbed_image)
-        transformed_original = attgan_model.G(transformed_x_real, c_trg, mode='enc-dec')
-        transformed_perturbed = attgan_model.G(transformed_perturbed_image, c_trg, mode='enc-dec')
-
-
+        transformed_original, _ = self.G(transformed_x_real, c_trg)
+        transformed_perturbed, _ = self.G(transformed_perturbed_image, c_trg)
         defense_l1_loss = F.l1_loss(transformed_original, transformed_perturbed)
         defense_l2_loss = F.mse_loss(transformed_original, transformed_perturbed)
-
         defense_lpips = self.lpips_loss(transformed_original, transformed_perturbed).mean()
 
-        # Scale and apply based on L1 Error = [0, 131,072] / L2 Error = [0, 512] / LPIPS = [0, 1]
-        reward_defense = ((defense_l1_loss / 10) + (defense_l2_loss / 5) + defense_lpips) * 5
-
-        # 2. Noise Invisibility Reward
+        ### b. Imperceptibility
         # Use the similarity between the noisy image and the original image as a reward (PSNR, SSIM, LPIPS).
         x_real_np = x_real.squeeze().cpu().numpy()
         perturbed_image_np = perturbed_image.squeeze().cpu().numpy()
-
         if np.array_equal(x_real_np, perturbed_image_np):
-            invisibility_psnr = 100.0 # Assign max PSNR if the two images are identical
+            invisibility_psnr = 100.0 # If the two images are identical, assign the maximum PSNR value.
         else:
             invisibility_psnr = psnr(x_real.squeeze().cpu().numpy(), perturbed_image.squeeze().cpu().numpy(), data_range=1.0)
-
-        invisibility_ssim = ssim(x_real.squeeze().cpu().numpy(), perturbed_image.squeeze().cpu().numpy(), data_range=1.0, win_size=3, channel_axis=0, multichannel=True) # Specify channel axis
-
+        invisibility_ssim = ssim(x_real.squeeze().cpu().numpy(), perturbed_image.squeeze().cpu().numpy(), data_range=1.0, win_size=3, channel_axis=0, multichannel=True) # Specify channel axis.
         invisibility_lpips = self.lpips_loss(perturbed_image, x_real).mean()
+ 
+        # parameter setting
+        tau_eff = 0.05   # effectiveness threshold
+        tau_ssim, m_ssim = 0.96, 0.02   # SSIM margin
+        m_eff = 0.03                    # L2 margin 
+        lam = 0.7                       # SSIM penalty
+        eta = 0.6                       # effectiveness weight (0~1)
 
-        # Scale and apply based on PSNR = [0, 100] / SSIM = [-1, 1] / LPIPS = [0, 1]
-        reward_invisibility = (0.01 * invisibility_psnr) + invisibility_ssim + (1 - invisibility_lpips)
+        def clip01(x): 
+            return max(0.0, min(1.0, x))
 
-        # Final Reward Combination (Since the two rewards are in a trade-off relationship, adjust weights while keeping the sum fixed at 1.0)
-        w_defense = self.reward_weight
-        w_invisibility = 1.0 - w_defense
-        total_reward = w_defense * reward_defense + w_invisibility * reward_invisibility
+        # 1) effectiveness hinge (0→1 saturate)
+        g_l2   = clip01((float(defense_l2_loss) - float(tau_eff)) / m_eff)
 
+        # 2) imperceptibility hinge (0→1 saturate)
+        g_ssim = clip01((float(invisibility_ssim) - tau_ssim) / m_ssim)
+
+        # 3) SSIM penalty (0→1 saturate)
+        pen_ssim = clip01((tau_ssim - float(invisibility_ssim)) / m_ssim)
+
+        # effectiveness more weighting
+        base = g_l2 * (eta + (1.0 - eta) * g_ssim)
+        total_reward = base - lam * pen_ssim
+        # total_reward = max(-1.0, min(1.0, total_reward))  # optionally clip the reward to [-1, 1]
+        
+        print(f"[total Reward] L2={defense_l2_loss:.4f}, lpips={invisibility_lpips:.4f}, ssim={invisibility_ssim}, total_reward={total_reward}")
         return total_reward, defense_l1_loss, defense_l2_loss, defense_lpips, invisibility_ssim, invisibility_psnr, invisibility_lpips
+
+
 
 
     """
@@ -961,7 +1015,20 @@ class SolverRainbow(object):
                     # 5. Calculate Reward
                     reward, defense_l1_loss, defense_l2_loss, defense_lpips, invisibility_ssim, invisibility_psnr, invisibility_lpips = self.calculate_reward(original_gen_image, perturbed_gen_image, x_real, perturbed_image, c_trg)
 
-                    total_reward_this_episode += reward.item() # To get the reward trend plot
+                    # neptune logging
+                    if self.run is not None:
+                        self.run["train/reward"].append(float(reward))
+                        self.run["train/L1"].append(float(defense_l1_loss))
+                        self.run["train/L2"].append(float(defense_l2_loss))
+                        self.run["train/LPIPS"].append(float(invisibility_lpips))
+                        self.run["train/SSIM"].append(float(invisibility_ssim))
+
+                    # To get the reward trend plot
+                    if isinstance(reward, torch.Tensor):
+                        total_reward_this_episode += reward.item()
+                    else:
+                        total_reward_this_episode += reward      
+
 
                     reward_tensor = torch.tensor([reward.detach()], dtype=torch.float32).to(self.device) # Convert reward to a tensor
 
@@ -1172,6 +1239,9 @@ class SolverRainbow(object):
             print(f"[!] Error occurred while saving Rainbow DQN agent weights and optimizer weights: {e}")
         print(f"[INFO] Finished saving Rainbow DQN agent weights and optimizer weights: {checkpoint_path}")
 
+        # neptune logging
+        if self.run is not None:
+            self.run.stop()
 
     """Helper function to create an N-step transition"""
     def _get_n_step_transition(self, n_step_buffer):
