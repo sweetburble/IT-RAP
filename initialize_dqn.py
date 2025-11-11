@@ -22,6 +22,6 @@ checkpoint = {
 }
 
 # save
-save_path = "final_rainbow_dqn.pth"
+save_path = "stargan_celeba_256/models/final_rainbow_dqn.pth"
 torch.save(checkpoint, save_path)
 print(f"RL model initial weights saved: {save_path}")
