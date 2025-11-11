@@ -12,7 +12,6 @@ Our comprehensive experiments demonstrate that IT-RAP successfully disrupts deep
   <img src="https://github.com/user-attachments/assets/9a0e9cda-f8f4-4470-b08c-a91219d901fc" width="60.8%">
 </p>
 
-
 ## Datasets and Models
 
 **StarGAN Dataset**
@@ -33,6 +32,64 @@ Follow instruction in the [MAAD-Face official repository](https://github.com/pte
 
 **AttGAN Models**
 Follow instruction in the [AttGAN official repository](https://github.com/elvisyjlin/AttGAN-PyTorch) for downloading their model.
+
+## Setup
+
+### Install uv
+
+```
+https://docs.astral.sh/uv/getting-started/installation/
+```
+
+### Clone and Initialize the Project
+
+Run the following commands in your terminal:
+
+```bash
+git clone https://github.com/sweetburble/IT-RAP
+cd IT-RAP
+uv init --python 3.12
+uv add ellzaf-ml
+```
+
+### GPU Support (Optional)
+
+If you have an NVIDIA GPU with CUDA installed, uninstall the default CPU versions of PyTorch and torchvision, then reinstall them with CUDA support:
+
+```
+https://pytorch.org/get-started/locally/
+```
+
+For example, if you're using CUDA 12.6:
+
+```bash
+uv pip uninstall torch torchvision
+uv pip install torch torchvision --index-url https://download.pytorch.org/whl/cu126
+```
+
+**Note:** CUDA 12.1 and 11.8 builds are also available. Match your installation to your CUDA version:
+
+-   CUDA 12.2 → install CUDA 12.1 build
+-   CUDA 11.9 → install CUDA 11.8 build
+
+The CPU version is automatically installed as a dependency of `ellzaf-ml`.
+
+### Install Additional Dependencies
+
+Install the remaining Python packages using the same method:
+
+```bash
+uv add scikit-image
+uv add torchmetrics
+uv add face_alignment
+uv add pandas
+uv add torch_dct
+uv add scikit-learn
+uv add seaborn
+uv add h5py
+uv add PyWavelets
+uv add neptune
+```
 
 ## Attack Training
 
@@ -328,10 +385,12 @@ process = subprocess.Popen(
 Other hyperparameters, such as the number of inference images (`--inference_image_num`), and selected attributes (`--selected_attrs`), can be modified directly within the `[Infer] execute_file_infer.py` script to suit your experimental requirements.
 
 ## Results
+
 The figure below illustrates the trade-off between effectiveness and imperceptibility. While increasing λ boosts effectiveness (higher L2 error) at the cost of imperceptibility (lower PSNR) , perturbations remain visually unnoticeable at a PSNR of over 25.
 <img width="2809" height="1000" alt="Image" src="https://github.com/user-attachments/assets/6c831395-01f8-48b4-97b6-e9e3e08f959b" />
 
 Table that shows the relative improvement of ITRAP over PGD and DF-RAP using the L2 error metric. Each comparison reflects how much ITRAP improves over the underlying attack in two settings, where we averaged across five transformation types without image transformation.
+
 <table>
   <thead>
     <tr>
@@ -392,8 +451,6 @@ Table that shows the relative improvement of ITRAP over PGD and DF-RAP using the
   </tbody>
 </table>
 
-
-   
 For comparison of results by Dataset and comparison of results by Deepfake model, refer to the [Results](https://github.com/sweetburble/IT-RAP/tree/main/Results) folder.
 
 <!-- 논문 2장에서 나온 내용 중 일부 핵심 내용을 가져와도 되고, Disrupting Deepfakes 또는 DF-RAP 논문만 언급하면 좋을 듯합니다. -->
@@ -406,16 +463,16 @@ Our work, IT-RAP, builds upon previous research focused on creating adversarial 
 
 -   **[DF-RAP (Qu et al., 2024)](https://github.com/ZOMIN28/DF_RAP)**: This study highlighted that adversarial perturbations can be significantly weakened by lossy compression, such as that used by online social networks. It underscores the importance of creating perturbations that are robust not just to simple transformations but also to compression artifacts, which is a key goal of our project.
 
-
-
 ## Acknowledges
 
 Our work is based on:
 
-**[Deepfake model]**   
--   [StarGAN](https://github.com/yunjey/stargan)   
+**[Deepfake model]**
+
+-   [StarGAN](https://github.com/yunjey/stargan)
 -   [AttGAN](https://github.com/elvisyjlin/AttGAN-PyTorch)
 
-**[Adversarial Perturbation]**   
--   [Disrupting Deepfakes](https://github.com/natanielruiz/disrupting-deepfakes)   
+**[Adversarial Perturbation]**
+
+-   [Disrupting Deepfakes](https://github.com/natanielruiz/disrupting-deepfakes)
 -   [DF-RAP](https://github.com/ZOMIN28/DF_RAP)

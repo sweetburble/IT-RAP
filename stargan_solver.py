@@ -1025,7 +1025,7 @@ class SolverRainbow(object):
                         total_reward_this_episode += reward                    
 
 
-                    reward_tensor = torch.tensor([reward.detach()], dtype=torch.float32).to(self.device) # Convert reward to a tensor
+                    reward_tensor = torch.tensor([reward], dtype=torch.float32).to(self.device) # Convert reward to a tensor
 
                     # print(f"[DEBUG] Reward calculated in this step {step+1}: {reward.item()}, Deepfake Defense L1 Loss: {defense_l1_loss.item()}, Deepfake Defense L2 Loss: {defense_l2_loss:.5f}, Deepfake Defense LPIPS: {defense_lpips.item()}")
 
