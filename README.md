@@ -93,6 +93,19 @@ uv add neptune
 
 ## Attack Training
 
+### **Initializing DQN Model on Your Local Machine**
+
+You should initialize the RL model and specify the checkpoint for saving before starting training.
+
+To run the script, use the following command in your terminal:
+
+```bash
+python "initialize_dqn.py"
+```
+Once executed, an initialized `.pth` checkpoint file for the model will be created in the `./stargan_celeba_256/models/` directory.
+
+
+
 ### **Training Models on Your Local Machine**
 
 You can train the StarGAN or AttGAN models by running the `[Local] execute_file.py` script. Depending on the combination of the model and dataset you wish to train, you can comment or uncomment the relevant sections of the script.
