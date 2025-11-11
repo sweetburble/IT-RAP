@@ -24,4 +24,4 @@ checkpoint = {
 # save
 save_path = "final_rainbow_dqn.pth"
 torch.save(checkpoint, save_path)
-print(f"Rainbow DQN 초기 가중치 저장 완료: {save_path}")
+print(f"RL model initial weights saved: {save_path}")
