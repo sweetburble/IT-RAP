@@ -34,5 +34,10 @@ torch-dct>=0.1.6
 # Hyperparameter optimization
 optuna>=3.0.0
 
+# Hyperparameter logging
+neptune-client==1.14.0
+
 # Others (only if used explicitly)
 h5py>=3.9.0
+sympy==1.14.0
+face-alignment==1.4.1
