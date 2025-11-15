@@ -48,7 +48,7 @@ args.gpu = torch.cuda.is_available()
 attgan_model = AttGAN(args)
 
 # Path to the downloaded checkpoint file
-checkpoint_path = r'.\attgan\256_shortcut1_inject1_none_hq\checkpoint\weights.199.pth'
+checkpoint_path = r'./attgan/256_shortcut1_inject1_none_hq/checkpoint/weights.199.pth'
 attgan_model.load(checkpoint_path)
 attgan_model.eval() # Switch to inference mode
 
