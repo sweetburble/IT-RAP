@@ -13,26 +13,6 @@ Our comprehensive experiments demonstrate that IT-RAP successfully disrupts deep
 </p>
 
 
-## Datasets and Models
-
-**StarGAN Dataset**
-
-```
-bash download.sh celeba
-```
-
-**StarGAN Models**
-
-```
-bash download.sh pretrained-celeba-256x256
-```
-
-**MAAD-Face Dataset**
-Follow instruction in the [MAAD-Face official repository](https://github.com/pterhoer/MAAD-Face) for downloading their data.
-
-**AttGAN Models**
-Follow instruction in the [AttGAN official repository](https://github.com/elvisyjlin/AttGAN-PyTorch) for downloading their model.
-
 ## Setup
 
 ### Install uv
@@ -90,6 +70,29 @@ uv add h5py
 uv add PyWavelets
 uv add neptune
 ```
+
+
+## Datasets and Models
+
+**StarGAN Dataset**
+
+```
+bash download.sh celeba
+```
+
+**StarGAN Models**
+
+```
+bash download.sh pretrained-celeba-256x256
+```
+
+**MAAD-Face Dataset**
+Follow instruction in the [MAAD-Face official repository](https://github.com/pterhoer/MAAD-Face) for downloading their data.
+
+**AttGAN Models**
+Follow instruction in the [AttGAN official repository](https://github.com/elvisyjlin/AttGAN-PyTorch) for downloading their model.
+
+
 
 ## Attack Training
 
