@@ -12,11 +12,12 @@ Our comprehensive experiments demonstrate that IT-RAP successfully disrupts deep
   <img src="https://github.com/user-attachments/assets/9a0e9cda-f8f4-4470-b08c-a91219d901fc" width="60.8%">
 </p>
 
+
 ## Datasets and Models
 
 **StarGAN Dataset**
 
-``'
+```
 bash download.sh celeba
 ```
 
