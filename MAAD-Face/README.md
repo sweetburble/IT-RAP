@@ -14,13 +14,8 @@ cd MAAD-Face
 
 ## 4. Move CSV files to current directory root (if inside folder)
 
-## 5. Unzip archive.zip
+## 5. Unzip data.zip
 ```bash
-unzip archive.zip
-```
-
-## 6. Identify extracted folder and rename to "data"
-```bash
-UNZIP_FOLDER=$(ls -d */ | grep -v "$DL_FOLDER" | grep -v "data" | sed 's#/##')
-mv "$UNZIP_FOLDER" data
+mkdir -p data
+unzip data.zip -d data
 ```
