@@ -16,8 +16,7 @@ Our comprehensive experiments demonstrate that IT-RAP successfully disrupts deep
 
 **StarGAN Dataset**
 
-```
-cd stargan
+``'
 bash download.sh celeba
 ```
 
