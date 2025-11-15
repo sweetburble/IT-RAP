@@ -91,7 +91,9 @@ Follow instruction in the [MAAD-Face official repository](https://github.com/pte
 
 **AttGAN Models**
 Follow instruction in the [AttGAN official repository](https://github.com/elvisyjlin/AttGAN-PyTorch) for downloading their model.
-
+- AttGAN Pretrained Checkpoint (256_shortcut1_inject1_none_hq) This repository uses a pretrained AttGAN checkpoint named **`256_shortcut1_inject1_none_hq`**. You can download the required weights from the Google Drive folder linked below and place the checkpoint file in your project's checkpoint directory before running training or inference.
+- Download Link   
+[Google Drive folder containing the checkpoint(s)](https://drive.google.com/drive/folders/1JMQ-gtI4rmdkmnPSIHw0cMGRBRa2Hw1z?usp=sharing)
 
 
 ## Attack Training
