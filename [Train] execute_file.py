@@ -29,7 +29,6 @@ os.system(
     "--selected_attrs Black_Hair Blond_Hair Brown_Hair Male Young "
     "--images_dir=MAAD-Face/data/train "
     "--attr_path=MAAD-Face/MAAD_Face_filtered.csv "
-    "--model_save_dir=stargan_celeba_256/models "
     "--result_dir=result_test "
     "--test_iters 200000 "
     "--batch_size 1 "

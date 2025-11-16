@@ -618,6 +618,16 @@ class SolverRainbow(object):
             # 입력 이미지 크기는 256x256이며, width=1, dropout=0.으로 설정합니다.
             model = GhostFaceNetsV2(image_size=256, width=1, dropout=0.)
             self.feature_extractor = model.to(device).eval()
+        elif self.feature_extractor_name == "edgeface":
+            # torch.hub를 사용하여 사전 훈련된 EdgeFace 모델을 불러옵니다.
+            # 'edgeface_xs_gamma_06'는 성능과 효율성 균형이 좋은 모델입니다.
+            self.feature_extractor = torch.hub.load(
+                'otroshi/edgeface', 
+                'edgeface_xs_gamma_06', 
+                source='github', 
+                pretrained=True,
+                trust_repo="check"
+            ).to(device).eval()
         else:
             raise ValueError("Invalid FEATURE_EXTRACTOR_NAME")
 
@@ -635,7 +645,7 @@ class SolverRainbow(object):
         elif (self.feature_extractor_name == "mesonet"):
             state_dim = 64
         else:
-            # ghostfacenets = 512
+            # ghostfacenets, edgeface = 512
             state_dim = 1024
 
         # Variable to be used in select_action()
@@ -830,20 +840,41 @@ class SolverRainbow(object):
         3. Using MesoNet model
         Final output when combining 2 images: [1, 64]
 
-        4. Using GhostFaceNets model
+        4. Using GhostFaceNets / EdgeFace model
         Output dimension: 256x256 input image -> [1, 512] embedding vector
         Final output when combining 2 images: [1, 1024]
     """
     def get_state(self, perturbed_image, perturbed_gen_image):
-        # Convert input image range from [-1, 1] to [0, 1]
-        perturbed_image_norm = (perturbed_image + 1) / 2
-        perturbed_gen_image_norm = (perturbed_gen_image + 1) / 2
-        
-        # Normalize with ImageNet mean and standard deviation
-        normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], 
-                                        std=[0.229, 0.224, 0.225])
-        perturbed_image_norm = normalize(perturbed_image_norm)
-        perturbed_gen_image_norm = normalize(perturbed_gen_image_norm)
+        if self.feature_extractor_name == "mesonet":
+            # Use Meso4 + Meso4Inception
+            with torch.no_grad():
+                meso4_features_perturbed = self.meso4_extractor.extract_features(perturbed_image)
+                meso4_features_perturbed_gen = self.meso4_extractor.extract_features(perturbed_gen_image)
+
+                meso4_inception_features_perturbed = self.meso4_inception_extractor.extract_features(perturbed_image)
+                meso4_inception_features_perturbed_gen = self.meso4_inception_extractor.extract_features(perturbed_gen_image)
+
+            # Combine all features (total 64 dimensions)
+            combined_features = torch.cat([meso4_features_perturbed, meso4_features_perturbed_gen, meso4_inception_features_perturbed, meso4_inception_features_perturbed_gen], dim=1)
+
+            return combined_features
+
+        if self.feature_extractor_name == "edgeface" or self.feature_extractor_name == "ghostfacenets":
+            # EdgeFace / GhostFaceNets 모델은 [-1, 1] 범위의 입력을 바로 사용합니다.
+            # 따라서 별도의 정규화 과정이 필요 없습니다.
+            perturbed_image_norm = perturbed_image
+            perturbed_gen_image_norm = perturbed_gen_image
+        else:
+            # 기존 모델들은 ImageNet 정규화를 사용합니다.
+            # 입력 이미지 범위 [-1, 1] -> [0, 1]로 변환
+            perturbed_image_norm = (perturbed_image + 1) / 2
+            perturbed_gen_image_norm = (perturbed_gen_image + 1) / 2
+            
+            # ImageNet mean/std로 정규화
+            normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], 
+                                            std=[0.229, 0.224, 0.225])
+            perturbed_image_norm = normalize(perturbed_image_norm)
+            perturbed_gen_image_norm = normalize(perturbed_gen_image_norm)
 
         # Extract features from images
         with torch.no_grad():
@@ -858,20 +889,7 @@ class SolverRainbow(object):
         combined_features = torch.cat([perturbed_features, perturbed_gen_features], dim=1)
         
         return combined_features
-
-        # # Use Meso4 + Meso4Inception
-        # with torch.no_grad():
-        #     meso4_features_perturbed = self.meso4_extractor.extract_features(perturbed_image)
-        #     meso4_features_perturbed_gen = self.meso4_extractor.extract_features(perturbed_gen_image)
-
-        #     meso4_inception_features_perturbed = self.meso4_inception_extractor.extract_features(perturbed_image)
-        #     meso4_inception_features_perturbed_gen = self.meso4_inception_extractor.extract_features(perturbed_gen_image)
-
-        # # Combine all features from Meso4 (total 64 dimensions)
-        # combined_features = torch.cat([meso4_features_perturbed, meso4_features_perturbed_gen, meso4_inception_features_perturbed, meso4_inception_features_perturbed_gen], dim=1)
-
-        # return combined_features
-
+    
 
     """Performs the RLAB attack (Rainbow DQN Agent)"""
     def train_attack(self):
