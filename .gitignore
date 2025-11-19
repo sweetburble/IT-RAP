@@ -1,6 +1,6 @@
 ﻿data/celeba
 
-stargan_celeba_256
+checkpoints
 
 result_test
 result_inference

@@ -20,6 +20,6 @@ checkpoint = {
     'optimizer_state_dict': optimizer.state_dict()
 }
 # Save
-save_path = "stargan_celeba_256/models/final_rainbow_dqn.pth"
+save_path = "checkpoints/models/final_rainbow_dqn.pth"
 torch.save(checkpoint, save_path)
 print(f"Initial Rainbow DQN weights saved successfully: {save_path}")

@@ -107,7 +107,7 @@ To run the script, use the following command in your terminal:
 ```bash
 python "initialize_dqn.py"
 ```
-Once executed, an initialized `.pth` checkpoint file for the model will be created in the `./stargan_celeba_256/models/` directory.
+Once executed, an initialized `.pth` checkpoint file for the model will be created in the `./checkpoints/models/` directory.
 
 
 
@@ -258,7 +258,7 @@ python "[Infer] execute_file_infer.py"
 
 Before proceeding with inference, you need the pre-trained weight file for the Rainbow DQN model. This file must be located at the following path:
 
--   **Weight Path:** `stargan_celeba_256/models/final_rainbow_dqn.pth`
+-   **Weight Path:** `checkpoints/models/final_rainbow_dqn.pth`
 
 <br>
 
