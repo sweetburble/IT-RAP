@@ -133,86 +133,82 @@ Below are detailed instructions for the four possible training combinations.
 
 #### **1. StarGAN with CelebA Dataset**
 
-This method trains the **StarGAN** model using the CelebA dataset. In the `[Local] execute_file.py` file, enable the CelebA dataset code and set the execution file to `stargan_main.py`.
+This method trains the **StarGAN** model using the CelebA dataset. Run `[CelebA] train_entry_point.py`.
 
 **Setup:**
 
--   Activate the CelebA code block (lines 40-52).
--   Comment out the MAAD-Face code block (lines 55-71).
--   Ensure the execution file on line 41 is `stargan_main.py`.
+-   Ensure the execution file is `stargan_main.py`.
 
 ```python
-# [Local] execute_file.py
-
-# Run with [CelebA] dataset
+# [CelebA] train_entry_point.py
 os.system(
-    "python \"stargan_main.py\" "  # <-- 1. Confirm StarGAN execution file
+    "python \"stargan_main.py\" "         # 'stargan_main.py'
     "--mode train "
-    "--dataset CelebA "
-    "--training_image_num 5 "
-    ...
+    "--dataset CelebA "     
+    "--training_image_num 100 "
+    "--image_size 256 "
+    "--c_dim 5 "
+    "--selected_attrs Black_Hair Blond_Hair Brown_Hair Male Young "
+    "--model_save_dir=checkpoints/models "
+    "--result_dir=result_test "
+    "--test_iters 200000 "
+    "--batch_size 1"
 )
-
-# Run with [MAAD-Face] dataset
-# os.system(
-#     "python \"attgan_main.py\" "
-#     ...
-# )
 ```
 
 <br>
 
 #### **2. AttGAN with CelebA Dataset**
 
-This method trains the **AttGAN** model using the CelebA dataset. Use the same code block as in method 1, but change the execution file to `attgan_main.py`.
+This method trains the **AttGAN** model using the CelebA dataset. Run `[CelebA] train_entry_point.py`.
 
 **Setup:**
 
--   Activate the CelebA code block (lines 40-52).
--   Comment out the MAAD-Face code block (lines 55-71).
--   Modify the execution file on line 41 to `attgan_main.py`.
+-   Ensure the execution file is `attgan_main.py`.
 
 ```python
-# Run with [CelebA] dataset
+# [CelebA] train_entry_point.py
 os.system(
-    "python \"attgan_main.py\" "  # <-- 2. Modify to AttGAN execution file
+    "python \"attgan_main.py\" "         # 'attgan_main.py'
     "--mode train "
-    "--dataset CelebA "
-    ...
+    "--dataset CelebA "     
+    "--training_image_num 100 "
+    "--image_size 256 "
+    "--c_dim 5 "
+    "--selected_attrs Black_Hair Blond_Hair Brown_Hair Male Young "
+    "--model_save_dir=checkpoints/models "
+    "--result_dir=result_test "
+    "--test_iters 200000 "
+    "--batch_size 1"
 )
-
-# Run with [MAAD-Face] dataset
-# os.system(
-#     "python \"attgan_main.py\" "
-#     ...
-# )
 ```
 
 <br>
 
 #### **3. StarGAN with MAAD-Face Dataset**
 
-This method trains the **StarGAN** model using the MAAD-Face dataset. In `[Local] execute_file.py`, uncomment the MAAD-Face dataset code and set the execution file to `stargan_main.py`.
+This method trains the **StarGAN** model using the MAAD-Face dataset. Run `[MAADFace] train_entry_point.py`.
 
 **Setup:**
 
--   Comment out the CelebA code block (lines 40-52).
--   Uncomment the MAAD-Face code block (lines 55-71).
--   Modify the execution file on line 56 to `stargan_main.py`.
+-   Ensure the execution file is `stargan_main.py`.
 
 ```python
-# Run with [CelebA] dataset
-# os.system(
-#     "python \"stargan_main.py\" "
-#     ...
-# )
-
-# Run with [MAAD-Face] dataset
 os.system(
-    "python \"stargan_main.py\" " # <-- 3. Modify to StarGAN execution file
-    "--mode train "
+    "python \"stargan_main.py\" "       # 'stargan_main.py'
+    "--mode train " 
     "--dataset MAADFace "
-    ...
+    "--training_image_num 200 "
+    "--image_size 256 "
+    "--c_dim 5 "
+    "--selected_attrs Black_Hair Blond_Hair Brown_Hair Male Young "
+    "--images_dir=MAAD-Face/data/train "
+    "--attr_path=MAAD-Face/MAAD_Face_filtered.csv "
+    "--model_save_dir=checkpoints/models "
+    "--result_dir=result_test "
+    "--test_iters 200000 "
+    "--batch_size 1 "
+    "--start_index 900" 
 )
 ```
 
@@ -220,27 +216,28 @@ os.system(
 
 #### **4. AttGAN with MAAD-Face Dataset**
 
-This method trains the **AttGAN** model using the MAAD-Face dataset. Activate the MAAD-Face code block as in method 3 and ensure the execution file is `attgan_main.py`.
+This method trains the **StarGAN** model using the MAAD-Face dataset. Run `[MAADFace] train_entry_point.py`.
 
 **Setup:**
 
--   Comment out the CelebA code block (lines 40-52).
--   Uncomment the MAAD-Face code block (lines 55-71).
--   Ensure the execution file on line 56 is `attgan_main.py`.
+-   Ensure the execution file is `attgan_main.py`.
 
 ```python
-# Run with [CelebA] dataset
-# os.system(
-#     "python \"stargan_main.py\" "
-#     ...
-# )
-
-# Run with [MAAD-Face] dataset
 os.system(
-    "python \"attgan_main.py\" " # <-- 4. Confirm AttGAN execution file
-    "--mode train "
+    "python \"attgan_main.py\" "       # 'attgan_main.py'
+    "--mode train " 
     "--dataset MAADFace "
-    ...
+    "--training_image_num 200 "
+    "--image_size 256 "
+    "--c_dim 5 "
+    "--selected_attrs Black_Hair Blond_Hair Brown_Hair Male Young "
+    "--images_dir=MAAD-Face/data/train "
+    "--attr_path=MAAD-Face/MAAD_Face_filtered.csv "
+    "--model_save_dir=checkpoints/models "
+    "--result_dir=result_test "
+    "--test_iters 200000 "
+    "--batch_size 1 "
+    "--start_index 900" 
 )
 ```
 
@@ -252,8 +249,7 @@ Other hyperparameters, such as training image number (`--training_image_num`), s
 
 ## Attack Inference
 
-You can run inference on your local machine using a pre-trained model. The `[Infer] execute_file_infer.py` script allows you to evaluate the performance of the StarGAN or AttGAN models.
-
+You can run inference on your local machine using a pre-trained model. The `[CelebA] infer_entry_point.py` and `[MAADFace] infer_entry_point.py` scripts allow you to evaluate the performance of the StarGAN or AttGAN models.
 To run inference with the **CelebA** dataset, enter the following command in your terminal:
 
 ```bash
@@ -279,7 +275,7 @@ Before proceeding with inference, you need the pre-trained weight file for the R
 
 ### **Detailed Inference Instructions**
 
-You can run four different combinations of inference by modifying the settings within the `[Infer] execute_file_infer.py` file. Select your desired model and dataset by editing line 25 and the commented-out sections of the script.
+You can run four different combinations of inference by modifying the settings within the `[CelebA] infer_entry_point.py` and `[MAADFace] infer_entry_point.py` files.   
 
 <br>
 
@@ -289,19 +285,17 @@ Runs inference using the **StarGAN** model and the **CelebA** dataset.
 
 **Setup:**
 
--   Ensure that line 25 in `[Infer] execute_file_infer.py` is `stargan_main.py`.
--   Make sure the CelebA dataset code block (lines 25-37) is uncommented.
--   Make sure the MAAD-Face dataset code block (lines 41-53) is commented out.
+-   Ensure the execution file is `stargan_main.py`.
 
 ```python
-# [Infer] execute_file_infer.py
+# [CelebA] infer_entry_point.py
 
 # ... (Omitted top of the code)
 
 process = subprocess.Popen(
     [
         # CelebA dataset
-        "python", "stargan_main.py",  # <-- 1. Confirm StarGAN execution file
+        "python", "stargan_main.py",     # 'stargan_main.py'
         "--mode", "inference",
         "--dataset", "CelebA",
         # ... (rest of the parameters)
@@ -322,19 +316,17 @@ Runs inference using the **AttGAN** model and the **CelebA** dataset.
 
 **Setup:**
 
--   Modify line 25 in `[Infer] execute_file_infer.py` to `attgan_main.py`.
--   Make sure the CelebA dataset code block (lines 25-37) is uncommented.
--   Make sure the MAAD-Face dataset code block (lines 41-53) is commented out.
+-   Ensure the execution file is `attgan_main.py`.
 
 ```python
-# [Infer] execute_file_infer.py
+# [CelebA] infer_entry_point.py
 
 # ... (Omitted top of the code)
 
 process = subprocess.Popen(
     [
         # CelebA dataset
-        "python", "attgan_main.py",  # <-- 2. Modify to AttGAN execution file
+        "python", "attgan_main.py",     # 'attgan_main.py'
         "--mode", "inference",
         "--dataset", "CelebA",
         # ... (rest of the parameters)
@@ -355,23 +347,17 @@ Runs inference using the **StarGAN** model and the **MAAD-Face** dataset.
 
 **Setup:**
 
--   Comment out the CelebA dataset code block (lines 25-37).
--   Uncomment the MAAD-Face dataset code block (lines 41-53).
--   Set the execution file on line 41 to `stargan_main.py`.
+-   Ensure the execution file is `stargan_main.py`.
 
 ```python
-# [Infer] execute_file_infer.py
+# [MAADFace] infer_entry_point.py
 
 # ... (Omitted top of the code)
 
 process = subprocess.Popen(
     [
-        # CelebA dataset
-        # "python", "stargan_main.py",
-        # ...
-
         # MAAD-Face dataset
-        "python", "stargan_main.py", # <-- 3. Set to StarGAN execution file
+        "python", "stargan_main.py",       # 'stargan_main.py'
         "--mode", "inference",
         "--dataset", "MAADFace",
         # ... (rest of the parameters)
@@ -388,23 +374,16 @@ Runs inference using the **AttGAN** model and the **MAAD-Face** dataset.
 
 **Setup:**
 
--   Comment out the CelebA dataset code block (lines 25-37).
--   Uncomment the MAAD-Face dataset code block (lines 41-53).
--   Ensure the execution file on line 41 is `attgan_main.py`.
+-   Ensure the execution file is `attgan_main.py`.
 
 ```python
-# [Infer] execute_file_infer.py
+# [MAADFace] infer_entry_point.py
 
 # ... (Omitted top of the code)
 
 process = subprocess.Popen(
     [
-        # CelebA dataset
-        # "python", "stargan_main.py",
-        # ...
-
-        # MAAD-Face dataset
-        "python", "attgan_main.py", # <-- 4. Confirm AttGAN execution file
+        "python", "attgan_main.py",       # 'attgan_main.py'
         "--mode", "inference",
         "--dataset", "MAADFace",
         # ... (rest of the parameters)
@@ -415,7 +394,7 @@ process = subprocess.Popen(
 
 ### **Changing Other Parameters**
 
-Other hyperparameters, such as the number of inference images (`--inference_image_num`), and selected attributes (`--selected_attrs`), can be modified directly within the `[Infer] execute_file_infer.py` script to suit your experimental requirements.
+Other hyperparameters, such as the number of inference images (`--inference_image_num`), and selected attributes (`--selected_attrs`), can be modified directly within the `[CelebA] infer_entry_point.py` and `[MAADFace] infer_entry_point.py` scripts to suit your experimental requirements.
 
 ## Results
 
