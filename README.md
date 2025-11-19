@@ -115,12 +115,18 @@ Once executed, an initialized `.pth` checkpoint file for the model will be creat
 
 You can train the StarGAN or AttGAN models by running the `[Local] execute_file.py` script. Depending on the combination of the model and dataset you wish to train, you can comment or uncomment the relevant sections of the script.
 
-To execute, simply run the following command in your terminal:
+To execute with the **CelebA** dataset, simply run the following command in your terminal:
 
 ```bash
-python "[Local] execute_file.py"
+python "[CelebA] train_entry_point.py"
 ```
 
+To execute with the **MAADFace** dataset, simply run the following command in your terminal:
+
+```bash
+python "[MAADFace] train_entry_point.py"
+```
+If you want to run it for AttGAN instead of StarGAN, simply replace the `"python \"stargan_main.py\""` part with `"python \"attgan_main.py\""` in the train_entry_point.py file for each dataset.
 Below are detailed instructions for the four possible training combinations.
 
 <br>
@@ -248,11 +254,20 @@ Other hyperparameters, such as training image number (`--training_image_num`), s
 
 You can run inference on your local machine using a pre-trained model. The `[Infer] execute_file_infer.py` script allows you to evaluate the performance of the StarGAN or AttGAN models.
 
-To run inference, enter the following command in your terminal:
+To run inference with the **CelebA** dataset, enter the following command in your terminal:
 
 ```bash
-python "[Infer] execute_file_infer.py"
+python "[CelebA] infer_entry_point.py"
 ```
+
+To run inference with the **MAADFace** dataset, enter the following command in your terminal:
+
+```bash
+python "[MAADFace] infer_entry_point.py"
+```
+If you want to run it for AttGAN instead of StarGAN, simply replace the `"python", "stargan_main.py"` part with `"python", "attgan_main.py"` in the train_entry_point.py file for each dataset.
+
+
 
 **Prerequisites:**
 
