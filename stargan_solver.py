@@ -278,8 +278,6 @@ class SolverRainbow(object):
         self.test_iters = config.test_iters
 
         # Parameters related to Directories
-        self.log_dir = config.log_dir
-        self.sample_dir = config.sample_dir
         self.model_save_dir = config.model_save_dir
         self.result_dir = config.result_dir
 
