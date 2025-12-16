@@ -18,17 +18,13 @@ def main(config):
 
     # neptune logging
     run = neptune.init_run(
-        project="your_workspace/your_project", # Replace with your Neptune.ai project
-        api_token="YOUR_NEPTUNE", # Replace with your Neptune.ai API token
+        project="it-rap/first", # Replace with your Neptune.ai project
+        api_token="eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vYXBwLm5lcHR1bmUuYWkiLCJhcGlfdXJsIjoiaHR0cHM6Ly9hcHAubmVwdHVuZS5haSIsImFwaV9rZXkiOiIyNDY2NjA2OC1mZmRhLTRhNDctYWU1ZC1hZDZkNzdjZGFmNzMifQ==", # Replace with your Neptune.ai API token
     )
 
     # Create directories if not exist
-    if not os.path.exists(config.log_dir):
-        os.makedirs(config.log_dir)
     if not os.path.exists(config.model_save_dir):
         os.makedirs(config.model_save_dir)
-    if not os.path.exists(config.sample_dir):
-        os.makedirs(config.sample_dir)
     if not os.path.exists(config.result_dir):
         os.makedirs(config.result_dir)
 
@@ -80,7 +76,7 @@ if __name__ == '__main__':
                         default=['Black_Hair', 'Blond_Hair', 'Brown_Hair', 'Male', 'Young'])
     
     # Training configuration
-    parser.add_argument('--dataset', type=str, default='CelebA', choices=['CelebA', 'RaFD', 'Both', 'MAADFace'])
+    parser.add_argument('--dataset', type=str, default='CelebA', choices=['CelebA', 'Both', 'MAADFace'])
     parser.add_argument('--g_lr', type=float, default=0.0001, help='learning rate for G')
     parser.add_argument('--d_lr', type=float, default=0.0001, help='learning rate for D')
     parser.add_argument('--beta1', type=float, default=0.5, help='beta1 for Adam optimizer')

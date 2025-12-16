@@ -3,7 +3,7 @@ from torch.optim import Adam
 from stargan_solver import RainbowDQNNet  
 
 # setting 
-# if mesonet, state_dim should be 128, if Ghostfacenets, state_dim should be 1024
+# if mesonet, state_dim should be 128, if Ghostfacenets or Edgeface state_dim should be 1024
 state_dim = 1024 
 action_dim = 4
 atom_size = 11

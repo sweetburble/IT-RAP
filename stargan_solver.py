@@ -784,7 +784,7 @@ class SolverRainbow(object):
             invisibility_psnr = psnr(x_real.squeeze().cpu().numpy(), perturbed_image.squeeze().cpu().numpy(), data_range=1.0)
         invisibility_ssim = ssim(x_real.squeeze().cpu().numpy(), perturbed_image.squeeze().cpu().numpy(), data_range=1.0, win_size=3, channel_axis=0, multichannel=True) # Specify channel axis.
         invisibility_lpips = self.lpips_loss(perturbed_image, x_real).mean()
- 
+
         # parameter setting
         tau_eff = 0.05   # effectiveness threshold
         tau_ssim, m_ssim = 0.96, 0.02   # SSIM margin

@@ -15,10 +15,10 @@ def extract_rewards_from_file(file_path):
 
 # === 2. List of file paths ===
 file_paths = [
-    ("C:\\Users\\Bandi\\Desktop\\Fork\\IT-RAP\\test_result_images\\20251108_2330\\reward_moving_avg.txt", "CelebA 100 images | StarGAN", "tab:orange"), # 1 
-    ("C:\\Users\\Bandi\\Desktop\\Fork\\IT-RAP\\test_result_images\\20251109_1757\\reward_moving_avg.txt", "CelebA 100 images | AttGAN", "tab:blue"), # 3
-    ("C:\\Users\\Bandi\\Desktop\\Fork\\IT-RAP\\test_result_images\\20251109_1739\\reward_moving_avg.txt", "MAAD 100 images | StarGAN", "tab:orange"), # 2
-    ("C:\\Users\\Bandi\\Desktop\\Fork\\IT-RAP\\test_result_images\\20251109_1749\\reward_moving_avg.txt", "MAAD 100 images | AttGAN", "tab:blue") # 4
+    # ("C:\\Users\\Bandi\\Desktop\\Fork\\IT-RAP\\test_result_images\\CelebA + AttGAN 1\\reward_moving_avg.txt", "CelebA 100 images | StarGAN", "tab:red"), # 1 
+    ("C:\\Users\\Bandi\\Desktop\\Fork\\IT-RAP\\test_result_images\\CelebA + StarGAN 1\\reward_moving_avg.txt", "CelebA 100 images | AttGAN", "tab:green"), # 3
+    # ("C:\\Users\\Bandi\\Desktop\\Fork\\IT-RAP\\test_result_images\\MAAD + AttGAN 1\\reward_moving_avg.txt", "MAAD 100 images | StarGAN", "tab:gray"), # 2
+    ("C:\\Users\\Bandi\\Desktop\\Fork\\IT-RAP\\test_result_images\\MAAD + StarGAN 1\\reward_moving_avg.txt", "MAAD 100 images | AttGAN", "tab:blue") # 4
 ]
 
 window_size = 50
