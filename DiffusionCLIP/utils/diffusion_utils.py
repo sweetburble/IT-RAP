@@ -14,7 +14,16 @@ def extract(a, t, x_shape):
     broadcastable with x_shape."""
     bs, = t.shape
     assert x_shape[0] == bs
-    out = torch.gather(torch.tensor(a, dtype=torch.float, device=t.device), 0, t.long())
+
+    if torch.is_tensor(a):
+        # 이미 텐서라면: 디바이스와 타입만 t에 맞춤 (복사 경고 방지)
+        a_tensor = a.to(device=t.device, dtype=torch.float)
+    else:
+        # 넘파이 배열이라면: 텐서로 변환
+        a_tensor = torch.tensor(a, device=t.device, dtype=torch.float)
+    
+    out = torch.gather(a_tensor, 0, t.long())
+
     assert out.shape == (bs,)
     out = out.reshape((bs,) + (1,) * (len(x_shape) - 1))
     return out

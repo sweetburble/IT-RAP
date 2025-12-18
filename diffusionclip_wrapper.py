@@ -21,7 +21,7 @@ def dict2namespace(config):
         setattr(namespace, key, new_value)
     return namespace
 
-class DiffusionAttackerWrapper:
+class DiffusionCLIPWrapper:
     def __init__(self, device, checkpoints_dict, root_path='./DiffusionCLIP'):
         self.device = device
         self.checkpoints_dict = checkpoints_dict # {'male': path, 'neanderthal': path, ...}
@@ -33,9 +33,6 @@ class DiffusionAttackerWrapper:
         self.args = argparse.Namespace()
         
         # Diffusion 및 Sampling 기본 설정
-        self.args.t_0 = 400              # 시작 타임스텝 (논문/코드 기본값)
-        self.args.n_inv_step = 40        # Inversion 스텝 수
-        self.args.n_test_step = 40       # Generation 스텝 수
         self.args.sample_type = 'ddim'   # 샘플링 방식
         self.args.eta = 0.0              # Deterministic
         self.args.model_ratio = 1.0      # Finetuned 모델 사용 비율
@@ -133,15 +130,13 @@ class DiffusionAttackerWrapper:
         x_tensor: (1, 3, H, W) normalized [-1, 1]
         returns: (1, 3, H, W) normalized [-1, 1]
         """
-        t_0 = t_0 if t_0 is not None else self.args.t_0
-        n_inv_step = n_inv_step if n_inv_step is not None else self.args.n_inv_step
-        n_test_step = n_test_step if n_test_step is not None else self.args.n_test_step
-
-        # 1. 속성 모델 가중치 로드
-        self.load_attr_weights(attr_name)
+        # 1. 속성 모델 가중치 로드 (가중치는 고정이므로 no_grad)
+        with torch.no_grad():
+            self.load_attr_weights(attr_name)
         
-        # 이미지 전처리 확인: [-1, 1] 범위여야 함.
-        x = x_tensor.clone()
+        # x_tensor는 requires_grad=True 상태로 들어와야 함
+        # 이미지 전처리 확인: [-1, 1] 범위여야 함
+        x = x_tensor
         n = x.shape[0]
 
         # -----------------------------------------------------------
@@ -153,33 +148,32 @@ class DiffusionAttackerWrapper:
         
         model_list = [self.model] # 리스트 형태로 전달해야 함
 
-        with torch.no_grad():
-            for it, (i, j) in enumerate(zip((seq_inv_next[1:]), (seq_inv[1:]))):
-                t = (torch.ones(n) * i).to(self.device)
-                t_prev = (torch.ones(n) * j).to(self.device)
-                
-                x = denoising_step(x, t=t, t_next=t_prev, models=model_list,
-                                   logvars=self.logvar, sampling_type='ddim',
-                                   b=self.betas, eta=0, learn_sigma=self.learn_sigma, ratio=0)
+        for it, (i, j) in enumerate(zip((seq_inv_next[1:]), (seq_inv[1:]))):
+            t = (torch.ones(n) * i).to(self.device)
+            t_prev = (torch.ones(n) * j).to(self.device)
             
-            x_lat = x.clone()
+            x = denoising_step(x, t=t, t_next=t_prev, models=model_list,
+                                logvars=self.logvar, sampling_type='ddim',
+                                b=self.betas, eta=0, learn_sigma=self.learn_sigma, ratio=0)
+            
+        x_lat = x # Gradient 유지
 
-            # -----------------------------------------------------------
-            # Generation (Denoising) with Finetuned Model
-            # -----------------------------------------------------------
-            seq_test = np.linspace(0, 1, n_test_step) * t_0
-            seq_test = [int(s) for s in list(seq_test)]
-            seq_test_next = [-1] + list(seq_test[:-1])
+        # -----------------------------------------------------------
+        # Generation (Denoising) with Finetuned Model
+        # -----------------------------------------------------------
+        seq_test = np.linspace(0, 1, n_test_step) * t_0
+        seq_test = [int(s) for s in list(seq_test)]
+        seq_test_next = [-1] + list(seq_test[:-1])
+        
+        x_gen = x_lat
+        
+        for i, j in zip(reversed(seq_test), reversed(seq_test_next)):
+            t = (torch.ones(n) * i).to(self.device)
+            t_next = (torch.ones(n) * j).to(self.device)
             
-            x_gen = x_lat.clone()
-            
-            for i, j in zip(reversed(seq_test), reversed(seq_test_next)):
-                t = (torch.ones(n) * i).to(self.device)
-                t_next = (torch.ones(n) * j).to(self.device)
-                
-                x_gen = denoising_step(x_gen, t=t, t_next=t_next, models=model_list,
-                                       logvars=self.logvar, sampling_type=self.args.sample_type,
-                                       b=self.betas, eta=self.args.eta, 
-                                       learn_sigma=self.learn_sigma, ratio=0) # ratio=0 -> Finetuned 모델 100% 사용
+            x_gen = denoising_step(x_gen, t=t, t_next=t_next, models=model_list,
+                                    logvars=self.logvar, sampling_type=self.args.sample_type,
+                                    b=self.betas, eta=self.args.eta, 
+                                    learn_sigma=self.learn_sigma, ratio=0) # ratio=0 -> Finetuned 모델 100% 사용
 
         return x_gen

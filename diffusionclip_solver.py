@@ -1,4 +1,4 @@
-from diffusionclip_wrapper import DiffusionAttackerWrapper
+from diffusionclip_wrapper import DiffusionCLIPWrapper
 from DiffusionCLIP.configs.paths_config import * # 혹은 config 로드 경로
 from torchvision.utils import save_image
 import torch
@@ -411,10 +411,10 @@ class SolverRainbow(object):
     #                 step_indices.append(step)
                     
     #                 if action == 0:
-    #                     perturbed_image, _ = self.attack_func.PGD(perturbed_image, original_gen_image, c_trg)
+    #                     perturbed_image, _ = self.attack_func.PGD(perturbed_image, original_gen_image, attr_name)
     #                 else:
     #                     freq_band = ['LOW', 'MID', 'HIGH'][action - 1]
-    #                     perturbed_image, _ = self.attack_func.perturb_frequency_domain(perturbed_image, original_gen_image, c_trg, freq_band=freq_band)
+    #                     perturbed_image, _ = self.attack_func.perturb_frequency_domain(perturbed_image, c_trg, freq_band=freq_band)
                     
     #                 # Synchronize GPU and then stop measuring core processing time
     #                 if torch.cuda.is_available():
@@ -600,7 +600,7 @@ class SolverRainbow(object):
             "without_makeup": "./DiffusionCLIP/checkpoint/human_without_makeup_t301.pth"
         }
         
-        self.diffusion_attacker = DiffusionAttackerWrapper(
+        self.diffusionclip_wrapper = DiffusionCLIPWrapper(
             device=self.device,
             checkpoints_dict=self.target_attributes,
             root_path='./DiffusionCLIP'  # DiffusionCLIP 폴더가 프로젝트 루트에 있다고 가정
@@ -766,10 +766,10 @@ class SolverRainbow(object):
         ### a. Effectiveness
         # Randomly apply "image transformations" to original_gen_image and perturbed_gen_image each time, and calculate the difference between them.
         transformed_x_real, transformed_perturbed_image = apply_random_transform(x_real, perturbed_image)
-        transformed_original, _ = self.diffusion_attacker.forward_edit(
+        transformed_original, _ = self.diffusionclip_wrapper.forward_edit(
                             perturbed_image, attr_name, t_0=self.t_0, n_inv_step=self.n_inv_step, n_test_step=self.n_test_step
                         )
-        transformed_perturbed, _ = self.diffusion_attacker.forward_edit(
+        transformed_perturbed, _ = self.diffusionclip_wrapper.forward_edit(
                             perturbed_image, attr_name, t_0=self.t_0, n_inv_step=self.n_inv_step, n_test_step=self.n_test_step
                         )
         defense_l1_loss = F.l1_loss(transformed_original, transformed_perturbed)
@@ -946,12 +946,7 @@ class SolverRainbow(object):
             # DiffusionClip은 StarGAN의 label(c_org)을 사용하지 않고 체크포인트를 바꿈.
             # 따라서 c_trg_list 생성 로직 제거하고, target_attributes를 순회함.
 
-            # AttackFunction도 Diffusion에 맞게 수정 필요 (PGD 등에서 모델 호출 방식 변경)
-            # 여기서는 개념적으로만 표시: attack_func는 x_real에 노이즈를 더하는 역할
-            attack_func = diffustion_attacks.AttackFunction(config=self.config, model=self.diffusion_attacker, device=self.device) 
-            # 주의: PGD 공격 내부에서 Gradient를 구하려면 Diffusion 모델 미분이 필요함. 
-            # Diffusion은 VRAM이 많이 들고 Backprop이 매우 무거움. 
-            # PGD 대신 RL Agent가 선택한 Action(주파수 노이즈 등)만 적용한다면 model=None이어도 됨.
+            attack_func = diffusionclip_attacks.AttackFunction(config=self.config, diffusion_model=self.diffusionclip_wrapper, device=self.device) 
 
             # Lists to save the final results as images
             noattack_result_list = [x_real]
@@ -977,12 +972,12 @@ class SolverRainbow(object):
                 # =============================================
                 with torch.no_grad():
                     # 원본 이미지 -> Diffusion 변환
-                    original_gen_image = self.diffusion_attacker.forward_edit(
+                    original_gen_image = self.diffusionclip_wrapper.forward_edit(
                         x_real, attr_name, t_0=self.t_0, n_inv_step=self.n_inv_step, n_test_step=self.n_test_step
                     )
                     
                     # 초기 노이즈 이미지 -> Diffusion 변환 (Initial State)
-                    perturbed_gen_image = self.diffusion_attacker.forward_edit(
+                    perturbed_gen_image = self.diffusionclip_wrapper.forward_edit(
                         perturbed_image, attr_name, t_0=self.t_0, n_inv_step=self.n_inv_step, n_test_step=self.n_test_step
                     )
 
@@ -1013,14 +1008,14 @@ class SolverRainbow(object):
                     elif action in [1, 2, 3]:
                         # 주파수 기반 노이즈 (모델 불필요, 이미지 자체 변환)
                         freq_band = ['LOW', 'MID', 'HIGH'][action - 1]
-                        perturbed_image, _ = attack_func.perturb_frequency_domain(perturbed_image, original_gen_image, attr_name, freq_band=freq_band)
+                        perturbed_image, _ = attack_func.perturb_frequency_domain(perturbed_image, attr_name, freq_band=freq_band)
                     else:
                         raise ValueError("Invalid action index")
 
 
                     # 4. Generate a deepfake face-swapped image with StarGAN (perturbed image)
                     with torch.no_grad():
-                        perturbed_gen_image = self.diffusion_attacker.forward_edit(
+                        perturbed_gen_image = self.diffusionclip_wrapper.forward_edit(
                             perturbed_image, attr_name, t_0=self.t_0, n_inv_step=self.n_inv_step, n_test_step=self.n_test_step
                         )
 
@@ -1087,7 +1082,7 @@ class SolverRainbow(object):
                     remain_perturb_array = analyze_perturbation(perturbed_image - x_real)
                     results["원본(변형없음)"]["total_remain_map"] += remain_perturb_array
 
-                    perturbed_gen_image_orig = self.diffusion_attacker.forward_edit(perturbed_image, attr_name)
+                    perturbed_gen_image_orig = self.diffusionclip_wrapper.forward_edit(perturbed_image, attr_name)
 
                     noattack_result_list.append(perturbed_image)
                     noattack_result_list.append(original_gen_image)
@@ -1101,7 +1096,7 @@ class SolverRainbow(object):
                     remain_perturb_array = analyze_perturbation(x_adv_jpeg - x_real)
                     results["JPEG압축"]["total_remain_map"] += remain_perturb_array
 
-                    perturbed_gen_image_jpeg, _ = self.diffusion_attacker.forward_edit(perturbed_image, attr_name)
+                    perturbed_gen_image_jpeg, _ = self.diffusionclip_wrapper.forward_edit(perturbed_image, attr_name)
 
                     jpeg_result_list.append(x_adv_jpeg)
                     jpeg_result_list.append(original_gen_image)
@@ -1115,7 +1110,7 @@ class SolverRainbow(object):
                     remain_perturb_array = analyze_perturbation(x_adv_denoise_opencv - x_real)
                     results["OpenCV디노이즈"]["total_remain_map"] += remain_perturb_array
 
-                    perturbed_gen_image_opencv, _ = self.diffusion_attacker.forward_edit(perturbed_image, attr_name)
+                    perturbed_gen_image_opencv, _ = self.diffusionclip_wrapper.forward_edit(perturbed_image, attr_name)
 
                     opencv_result_list.append(x_adv_denoise_opencv)
                     opencv_result_list.append(original_gen_image)
@@ -1129,7 +1124,7 @@ class SolverRainbow(object):
                     remain_perturb_array = analyze_perturbation(x_adv_median - x_real)
                     results["중간값스무딩"]["total_remain_map"] += remain_perturb_array
 
-                    perturbed_gen_image_median, _ = self.diffusion_attacker.forward_edit(perturbed_image, attr_name)
+                    perturbed_gen_image_median, _ = self.diffusionclip_wrapper.forward_edit(perturbed_image, attr_name)
 
                     median_result_list.append(x_adv_median)
                     median_result_list.append(original_gen_image)
@@ -1143,8 +1138,8 @@ class SolverRainbow(object):
                     remain_perturb_array = analyze_perturbation(x_adv_padding - x_real_padding)
                     results["크기조정패딩"]["total_remain_map"] += remain_perturb_array
 
-                    original_gen_image_padding, _ = self.diffusion_attacker.forward_edit(perturbed_image, attr_name)
-                    perturbed_gen_image_padding, _ = self.diffusion_attacker.forward_edit(perturbed_image, attr_name)
+                    original_gen_image_padding, _ = self.diffusionclip_wrapper.forward_edit(perturbed_image, attr_name)
+                    perturbed_gen_image_padding, _ = self.diffusionclip_wrapper.forward_edit(perturbed_image, attr_name)
 
                     padding_result_list.append(x_adv_padding)
                     padding_result_list.append(original_gen_image_padding)
@@ -1158,8 +1153,8 @@ class SolverRainbow(object):
                     remain_perturb_array = analyze_perturbation(x_adv_transforms - x_real_transforms)
                     results["이미지변환"]["total_remain_map"] += remain_perturb_array
 
-                    original_gen_image_transforms, _ = self.diffusion_attacker.forward_edit(perturbed_image, attr_name)
-                    perturbed_gen_image_transforms, _ = self.diffusion_attacker.forward_edit(perturbed_image, attr_name)
+                    original_gen_image_transforms, _ = self.diffusionclip_wrapper.forward_edit(perturbed_image, attr_name)
+                    perturbed_gen_image_transforms, _ = self.diffusionclip_wrapper.forward_edit(perturbed_image, attr_name)
 
                     transforms_result_list.append(x_adv_transforms)
                     transforms_result_list.append(original_gen_image_transforms)
@@ -1318,7 +1313,7 @@ class RainbowDQNAgent:
     """
     def select_action(self, state):
         # [For testing] Force selection of only one action
-        return torch.tensor([[2]], device=device)
+        return torch.tensor([[3]], device=device)
 
 
         # In the initial steps, select actions with a 4:1:1:4 ratio
