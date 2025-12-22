@@ -1003,7 +1003,7 @@ class SolverRainbow(object):
                     # Action types: "Insert noise once in the spatial domain using FGSM", "Insert noise once in the low-frequency domain", "Insert noise once in the mid-frequency domain", "Insert noise once in the high-frequency domain"
                     if action == 0:
                         # Insert noise in the spatial domain using FGSM method
-                        perturbed_image, _ = attack_func.PGD(perturbed_image, original_gen_image, attr_name)
+                        perturbed_image, _ = attack_func.Diff_PGD(perturbed_image, original_gen_image, attr_name)
                         print("Action selected this step: PGD method Space Domain Noise")
                     elif action in [1, 2, 3]:
                         # 주파수 기반 노이즈 (모델 불필요, 이미지 자체 변환)
@@ -1313,7 +1313,7 @@ class RainbowDQNAgent:
     """
     def select_action(self, state):
         # [For testing] Force selection of only one action
-        return torch.tensor([[3]], device=device)
+        return torch.tensor([[0]], device=device)
 
 
         # In the initial steps, select actions with a 4:1:1:4 ratio

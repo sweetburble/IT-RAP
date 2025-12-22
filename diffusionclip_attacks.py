@@ -32,13 +32,81 @@ class AttackFunction(object):
         self.freq_mask_mid = self.create_frequency_masks([1, 3, 256, 256], "MID")
         self.freq_mask_high = self.create_frequency_masks([1, 3, 256, 256], "HIGH")
 
-    """
-    Role: Performs a basic I-FGSM attack.
+    def Diff_PGD(self, X_nat, target_img, target_attr):
+        """
+            Diff-PGD 방식:
+            전체 Diffusion Loop를 돌지 않고, 랜덤하게 샘플링된 Timestep t에서의 
+            One-Step 예측값을 이용하여 Gradient를 계산합니다.
+            
+            X_nat: 원본 이미지 (Clean)
+            target_img: 방어 목표 (보통 X_nat)
+        """
+        X = X_nat.clone().detach_()
+        iter_count = self.config.pgd_iter
 
-    Operation:
-    1. Use the original image.
-    2. Calculate gradient and update noise.
-    3. At each step, limit the noise size to within epsilon and clip the image pixel values to [-1, 1].
+        # DiffusionCLIP은 보통 t=0 ~ t=200 (또는 설정된 t_0) 구간에서 편집을 수행합니다.
+        # 따라서 공격도 이 구간에 집중해야 효과적입니다.
+        # config에 t_0가 없다면 기본값 200 사용
+        max_timestep = getattr(self.config, 'diffusion_t0', 200) 
+        
+        # 공격 대상 속성의 가중치 로드 (한 번만 수행)
+        if target_attr:
+            self.model.load_attr_weights(target_attr)
+
+        print(f"Starting Diff-PGD Defense... (Iter: {iter_count}, Max t: {max_timestep})")
+
+        for i in range(iter_count):
+            X.requires_grad = True
+            
+            # --- Diff-PGD 핵심 로직 ---
+            
+            # 1. Timestep t 샘플링 (Batch Size 만큼)
+            # 편집이 주로 일어나는 구간(0 ~ max_timestep)에서 랜덤 샘플링
+            # 너무 작은 t는 노이즈가 적어 Gradient가 불안정할 수 있으므로 
+            # 1 ~ max_timestep 사이에서 샘플링 권장
+            batch_size = X.shape[0]
+            t = torch.randint(low=1, high=max_timestep, size=(batch_size,), device=self.device).long()
+            
+            # 2. One-Step Prediction (Forward)
+            # 전체 루프 대신 단 한 번의 UNet 통과로 Gradient 계산
+            # X(현재 공격이미지)에 노이즈를 섞고(t시점), 모델이 예측한 원본(pred_x0)을 가져옴
+            pred_x0 = self.model.predict_x0_from_xt(X, t)
+
+            # 모델 가중치 기울기 초기화
+            self.model.model.zero_grad()
+
+            # 3. Loss 계산
+            # 방어 목표: 모델이 어떤 시점 t에서도 원본(target_img)을 복원해내도록 강제
+            # 이렇게 하면 Diffusion 모델은 편집을 수행하려 해도 원본으로 회귀하게 됨
+            loss = self.loss_fn(pred_x0, target_img)
+            
+            if i % 5 == 0: # 로그 너무 많이 찍히지 않게 조절
+                print(f"Iter {i+1}/{iter_count}, t_sample: {t.item()}, Loss: {loss.item():.4f}")
+
+            loss.backward()
+            
+            # 4. Gradient 추출 및 PGD 업데이트
+            grad = X.grad
+            if grad is None:
+                print("Error: Gradient is None.")
+                break
+
+            # Defense Update: Minimize Loss (Make predicted image close to original)
+            X_adv = X - self.alpha * grad.sign()
+
+            # 5. Projection (Epsilon Constraint)
+            eta = torch.clamp(X_adv - X_nat, min=-self.epsilon, max=self.epsilon)
+            X = torch.clamp(X_nat + eta, min=-1, max=1).detach()
+
+        return X, X - X_nat
+
+    """
+        Role: Performs a basic I-FGSM attack.
+
+        Operation:
+        1. Use the original image.
+        2. Calculate gradient and update noise.
+        3. At each step, limit the noise size to within epsilon and clip the image pixel values to [-1, 1].
     """
     def PGD(self, X_nat, target_img, target_attr):
         """

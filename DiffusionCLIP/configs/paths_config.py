@@ -21,9 +21,9 @@ HYBRID_MODEL_PATHS = [
 ]
 
 TEST_CONFIG = {
-    't_0': 500,
-    'n_inv_step': 40,
-    'n_test_step': 40,
+    't_0': 200,
+    'n_inv_step': 10,
+    'n_test_step': 10,
 }
 
 HYBRID_CONFIG = \
