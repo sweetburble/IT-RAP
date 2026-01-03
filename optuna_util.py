@@ -220,7 +220,7 @@ def print_comprehensive_metrics(results, episode, total_invisible_psnr, total_in
     score = (avg_invisible_psnr / 27) + (avg_invisible_ssim) + (1 - avg_invisible_lpips) + (2 * avg_success_rate)
     return score
 
-def visualize_actions(action_history, image_indices, attr_indices, step_indices):
+def visualize_actions(action_history, image_indices, attr_indices, step_indices, train_flag=False):
     """
     Visualizes and analyzes the action selection patterns of the Rainbow DQN reinforcement learning algorithm.
     Works efficiently even with large image datasets (100, 1000, 10000+ images).
@@ -244,11 +244,11 @@ def visualize_actions(action_history, image_indices, attr_indices, step_indices)
 
     # Move image files from the "result_test" folder to the newly created folder
     result_test_dir = None
-    for candidate_dir in ["result_test", "result_test_attgan", "result_inference"]:
-        if os.path.exists(candidate_dir):
-            result_test_dir = candidate_dir
-            break
-
+    if train_flag:
+        result_test_dir = "result_test"
+    else:
+        result_test_dir = "result_inference"
+        
     if result_test_dir:
         for filename in os.listdir(result_test_dir):
             src_path = os.path.join(result_test_dir, filename)
