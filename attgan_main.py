@@ -19,7 +19,7 @@ def main(config):
     # neptune logging
     run = neptune.init_run(
         project="it-rap/first", # Replace with your Neptune.ai project
-        api_token="eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vYXBwLm5lcHR1bmUuYWkiLCJhcGlfdXJsIjoiaHR0cHM6Ly9hcHAubmVwdHVuZS5haSIsImFwaV9rZXkiOiIyNDY2NjA2OC1mZmRhLTRhNDctYWU1ZC1hZDZkNzdjZGFmNzMifQ==", # Replace with your Neptune.ai API token
+        api_token="xxx", # Replace with your Neptune.ai API token
     )
 
     # Create directories if not exist
@@ -117,6 +117,7 @@ if __name__ == '__main__':
     parser.add_argument('--action_dim', type=int, default=4, help='max action dimension')
     parser.add_argument('--noise_level', type=float, default=0.005, help='noise level for RLAB perturbation')
     parser.add_argument('--feature_extractor_name', type=str, default="edgeface", help='Image feature extraction for State (mesonet, resnet50, vgg19, ghostfacenets, edgeface)')
+    parser.add_argument('--feature_extractor_frequency', type=int, default=1, help='Feature extractor call frequency (1=every step, 2=every 2 steps, etc.)')
 
 
     parser.add_argument('--alpha', type=float, default=0.8, help='PER alpha parameter')
