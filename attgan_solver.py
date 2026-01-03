@@ -298,6 +298,11 @@ class SolverRainbow(object):
         self.action_dim = config.action_dim
         self.noise_level = config.noise_level
         self.feature_extractor_name = config.feature_extractor_name # For State
+        self.feature_extractor_frequency = config.feature_extractor_frequency # Feature extractor call frequency
+        
+        # Feature extraction caching
+        self.step_counter = 0
+        self.cached_state = None
 
         # Parameters related to PER
         self.alpha = config.alpha # PER alpha
@@ -319,7 +324,6 @@ class SolverRainbow(object):
 
         self.build_model() # Build StarGAN model
         self.build_rlab_agent() # Build RLAB Agent
-
 
     def inference_rainbow_dqn(self, data_loader, result_dir):
         os.makedirs(result_dir, exist_ok=True)
@@ -364,9 +368,27 @@ class SolverRainbow(object):
         total_core_time = 0.0
         total_processing_time = 0.0
         
+        # Initialize detailed time measurement variables
+        total_generator_time = 0.0
+        total_feature_extraction_time = 0.0
+        total_feature_cached_time = 0.0
+        total_action_selection_time = 0.0
+        total_attack_execution_time = 0.0
+        total_feature_extractions = 0  # Count of actual feature extractions
+        total_feature_cache_hits = 0   # Count of cache hits
+        
         for infer_img_idx, (x_real, c_org, filename) in enumerate(data_loader):
             total_start_time = time.time()
             image_core_time = 0.0
+            
+            # Accumulators for detailed time per image
+            image_generator_time = 0.0
+            image_feature_extraction_time = 0.0
+            image_feature_cached_time = 0.0
+            image_action_selection_time = 0.0
+            image_attack_execution_time = 0.0
+            image_feature_extractions = 0
+            image_feature_cache_hits = 0
 
             x_real = x_real.to(self.device)
             c_org = c_org.to(self.device) # Move c_org to the device as well
@@ -397,30 +419,61 @@ class SolverRainbow(object):
                 c_trg[:, attr_index] = 1 - c_trg[:, attr_index]
 
                 perturbed_image = x_real.clone().detach_() + torch.tensor(np.random.uniform(-self.noise_level, self.noise_level, x_real.shape).astype('float32')).to(self.device)
+                # Reset step counter and cached state for each new image/attribute combination
+                self.step_counter = 0
+                self.cached_state = None
                 
                 for step in range(self.max_steps_per_episode):
+                    # Increment step counter for feature extraction frequency control
+                    self.step_counter += 1
                     core_start_time = time.time()
                     
+                    # Measure generator forward pass time
+                    gen_start_time = time.time()
                     with torch.no_grad():
                         original_gen_image = attgan_model.G(x_real, c_trg, mode='enc-dec')
                         perturbed_gen_image = attgan_model.G(perturbed_image, c_trg, mode='enc-dec')
+                    if torch.cuda.is_available():
+                        torch.cuda.synchronize()
+                    gen_end_time = time.time()
+                    step_generator_time = gen_end_time - gen_start_time
 
-                    state = self.get_state(perturbed_image, perturbed_gen_image)
+                    # Measure feature extraction time
+                    feat_start_time = time.time()
+                    state, is_cached = self.get_state(perturbed_image, perturbed_gen_image)
+                    if torch.cuda.is_available():
+                        torch.cuda.synchronize()
+                    feat_end_time = time.time()
+                    step_feature_time = feat_end_time - feat_start_time
                     
+                    # Measure action selection time
+                    action_start_time = time.time()
                     with torch.no_grad():
                         action = self.rl_agent.select_action(state).item()
-                        print(f"[Inference] Selected action: {action}")
+                    if torch.cuda.is_available():
+                        torch.cuda.synchronize()
+                    action_end_time = time.time()
+                    step_action_time = action_end_time - action_start_time
+                    print(f"[Inference] Selected action: {action}")
                     
                     action_history.append(int(action))
                     image_indices.append(infer_img_idx)
                     attr_indices.append(idx)
                     step_indices.append(step)
                     
+                    # Measure attack execution time
+                    attack_start_time = time.time()
                     if action == 0:
                         perturbed_image, _ = self.attack_func.PGD(perturbed_image, original_gen_image, c_trg)
+                        attack_type = "PGD"
                     else:
                         freq_band = ['LOW', 'MID', 'HIGH'][action - 1]
                         perturbed_image, _ = self.attack_func.perturb_frequency_domain(perturbed_image, original_gen_image, c_trg, freq_band=freq_band)
+                        attack_type = f"Freq-{freq_band}"
+                    if torch.cuda.is_available():
+                        torch.cuda.synchronize()
+                    attack_end_time = time.time()
+                    step_attack_time = attack_end_time - attack_start_time
                     
                     if torch.cuda.is_available():
                         torch.cuda.synchronize()
@@ -428,7 +481,27 @@ class SolverRainbow(object):
                     step_core_time = core_end_time - core_start_time
                     image_core_time += step_core_time
                     
+                    # Accumulate detailed times
+                    image_generator_time += step_generator_time
+                    image_action_selection_time += step_action_time
+                    image_attack_execution_time += step_attack_time
+                    
+                    if is_cached:
+                        image_feature_cached_time += step_feature_time
+                        image_feature_cache_hits += 1
+                    else:
+                        image_feature_extraction_time += step_feature_time
+                        image_feature_extractions += 1
+                    
+                    # Print existing core time
                     print(f"[Core Processing Time] Step {step + 1} processing time: {step_core_time:.5f}s")
+                    
+                    # Print detailed time breakdown
+                    cache_status = "cached" if is_cached else "extracted"
+                    print(f"  ├─ Generator forward: {step_generator_time:.5f}s")
+                    print(f"  ├─ Feature extraction: {step_feature_time:.5f}s ({cache_status})")
+                    print(f"  ├─ Action selection: {step_action_time:.5f}s")
+                    print(f"  └─ Attack execution: {step_attack_time:.5f}s ({attack_type})")
 
                 analyzed_perturbation_array = analyze_perturbation(perturbed_image - x_real)
                 total_perturbation_map += analyzed_perturbation_array
@@ -539,20 +612,89 @@ class SolverRainbow(object):
             
             total_core_time += image_core_time
             total_processing_time += total_elapsed_time
+            total_generator_time += image_generator_time
+            total_feature_extraction_time += image_feature_extraction_time
+            total_feature_cached_time += image_feature_cached_time
+            total_action_selection_time += image_action_selection_time
+            total_attack_execution_time += image_attack_execution_time
+            total_feature_extractions += image_feature_extractions
+            total_feature_cache_hits += image_feature_cache_hits
             
             print(f"[Core Processing Time] Image {infer_img_idx + 1} core processing time: {image_core_time:.5f}s")
             print(f"[Total Processing Time] Image {infer_img_idx + 1} total processing time: {total_elapsed_time:.5f}s (for reference)")
+            
+            # Print detailed time summary per image
+            print(f"\n[Detailed Time Summary] Image {infer_img_idx + 1}:")
+            print(f"  Generator forward:     {image_generator_time:.5f}s ({image_generator_time/image_core_time*100:.1f}%)")
+            print(f"  Feature extraction:    {image_feature_extraction_time:.5f}s ({image_feature_extractions} extractions)")
+            print(f"  Feature cached:        {image_feature_cached_time:.5f}s ({image_feature_cache_hits} cache hits)")
+            total_feature_time = image_feature_extraction_time + image_feature_cached_time
+            print(f"  Total feature time:    {total_feature_time:.5f}s ({total_feature_time/image_core_time*100:.1f}%)")
+            print(f"  Action selection:      {image_action_selection_time:.5f}s ({image_action_selection_time/image_core_time*100:.1f}%)")
+            print(f"  Attack execution:      {image_attack_execution_time:.5f}s ({image_attack_execution_time/image_core_time*100:.1f}%)")
+            if image_feature_extractions + image_feature_cache_hits > 0:
+                cache_hit_rate = image_feature_cache_hits / (image_feature_extractions + image_feature_cache_hits) * 100
+                print(f"  Feature cache hit rate: {cache_hit_rate:.1f}%")
+            print()
 
             if infer_img_idx >= (self.inference_image_num - 1):
                 break
 
         score = print_comprehensive_metrics(results, episode, total_invisible_psnr, total_invisible_ssim, total_invisible_lpips)
-        visualize_actions(action_history, image_indices, attr_indices, step_indices)
+        train_flag = False
+        visualize_actions(action_history, image_indices, attr_indices, step_indices, train_flag)
 
+        # Print final time summary (existing)
+        print(f"\n{'='*80}")
         print(f"[Inference Complete] Total core processing time: {total_core_time:.5f}s")
         print(f"[Inference Complete] Total processing time (for reference): {total_processing_time:.5f}s")
-        print(f"[Inference Complete] Average core processing time: {total_core_time / episode:.5f}s (processed {episode} in total)")
-        print(f"[Inference Complete] Average total processing time (for reference): {total_processing_time / episode:.5f}s (processed {episode} in total)")
+        print(f"[Inference Complete] Average core processing time: {total_core_time / episode:.5f}s (Total {episode} processed)")
+        print(f"[Inference Complete] Average total processing time (for reference): {total_processing_time / episode:.5f}s (Total {episode} processed)")
+        
+        # Print detailed time statistics
+        print(f"\n{'='*80}")
+        print(f"[Detailed Time Statistics] Total Inference Summary")
+        print(f"{'='*80}")
+        print(f"\n1. Total Time Breakdown:")
+        print(f"   Generator forward:     {total_generator_time:.5f}s ({total_generator_time/total_core_time*100:.1f}%)")
+        print(f"   Feature extraction:    {total_feature_extraction_time:.5f}s ({total_feature_extractions} extractions)")
+        print(f"   Feature cached:        {total_feature_cached_time:.5f}s ({total_feature_cache_hits} cache hits)")
+        total_all_feature_time = total_feature_extraction_time + total_feature_cached_time
+        print(f"   Total feature time:    {total_all_feature_time:.5f}s ({total_all_feature_time/total_core_time*100:.1f}%)")
+        print(f"   Action selection:      {total_action_selection_time:.5f}s ({total_action_selection_time/total_core_time*100:.1f}%)")
+        print(f"   Attack execution:      {total_attack_execution_time:.5f}s ({total_attack_execution_time/total_core_time*100:.1f}%)")
+        
+        print(f"\n2. Average Time per Image:")
+        print(f"   Generator forward:     {total_generator_time/episode:.5f}s")
+        print(f"   Feature extraction:    {total_feature_extraction_time/episode:.5f}s")
+        print(f"   Feature cached:        {total_feature_cached_time/episode:.5f}s")
+        print(f"   Total feature time:    {total_all_feature_time/episode:.5f}s")
+        print(f"   Action selection:      {total_action_selection_time/episode:.5f}s")
+        print(f"   Attack execution:      {total_attack_execution_time/episode:.5f}s")
+        
+        print(f"\n3. Feature Extraction Statistics:")
+        print(f"   Total feature calls:   {total_feature_extractions + total_feature_cache_hits}")
+        print(f"   Actual extractions:    {total_feature_extractions}")
+        print(f"   Cache hits:            {total_feature_cache_hits}")
+        if total_feature_extractions + total_feature_cache_hits > 0:
+            overall_cache_hit_rate = total_feature_cache_hits / (total_feature_extractions + total_feature_cache_hits) * 100
+            print(f"   Cache hit rate:        {overall_cache_hit_rate:.1f}%")
+            if total_feature_extractions > 0:
+                avg_extraction_time = total_feature_extraction_time / total_feature_extractions
+                print(f"   Avg extraction time:   {avg_extraction_time:.5f}s")
+            if total_feature_cache_hits > 0:
+                avg_cached_time = total_feature_cached_time / total_feature_cache_hits
+                print(f"   Avg cached time:       {avg_cached_time:.5f}s")
+                if total_feature_extractions > 0:
+                    speedup = avg_extraction_time / avg_cached_time
+                    print(f"   Cache speedup:         {speedup:.2f}x")
+        
+        print(f"\n4. Configuration:")
+        print(f"   Feature extractor:     {self.feature_extractor_name}")
+        print(f"   Extractor frequency:   {self.feature_extractor_frequency}")
+        print(f"   Max steps per episode: {self.max_steps_per_episode}")
+        print(f"   Number of images:      {episode}")
+        print(f"{'='*80}\n")
 
         return score
 
@@ -823,28 +965,32 @@ class SolverRainbow(object):
         Output dimension: 256x256 input image -> [1, 512] embedding vector
         Final output when combining 2 images: [1, 1024]
     """
-    def get_state(self, perturbed_image, perturbed_gen_image):
-        if self.feature_extractor_name == "mesonet":
-            # Use Meso4 + Meso4Inception
-            with torch.no_grad():
-                meso4_features_perturbed = self.meso4_extractor.extract_features(perturbed_image)
-                meso4_features_perturbed_gen = self.meso4_extractor.extract_features(perturbed_gen_image)
+    def get_state(self, perturbed_image, perturbed_gen_image, force_extract=False):
+        # if self.feature_extractor_name == "mesonet":
+        #     # Use Meso4 + Meso4Inception
+        #     with torch.no_grad():
+        #         meso4_features_perturbed = self.meso4_extractor.extract_features(perturbed_image)
+        #         meso4_features_perturbed_gen = self.meso4_extractor.extract_features(perturbed_gen_image)
 
-                meso4_inception_features_perturbed = self.meso4_inception_extractor.extract_features(perturbed_image)
-                meso4_inception_features_perturbed_gen = self.meso4_inception_extractor.extract_features(perturbed_gen_image)
+        #         meso4_inception_features_perturbed = self.meso4_inception_extractor.extract_features(perturbed_image)
+        #         meso4_inception_features_perturbed_gen = self.meso4_inception_extractor.extract_features(perturbed_gen_image)
 
-            # Combine all features (total 64 dimensions)
-            combined_features = torch.cat([meso4_features_perturbed, meso4_features_perturbed_gen, meso4_inception_features_perturbed, meso4_inception_features_perturbed_gen], dim=1)
+        #     # Combine all features (total 64 dimensions)
+        #     combined_features = torch.cat([meso4_features_perturbed, meso4_features_perturbed_gen, meso4_inception_features_perturbed, meso4_inception_features_perturbed_gen], dim=1)
+        #     return combined_features
 
-            return combined_features
-
+        # Check if we should extract features based on frequency
+        should_extract = force_extract or (self.step_counter % self.feature_extractor_frequency == 0)
+        # If we don't need to extract and have cached state, return cached
+        if not should_extract and self.cached_state is not None:
+            return self.cached_state, True  # Return (state, is_cached=True)
+        
         if self.feature_extractor_name == "edgeface" or self.feature_extractor_name == "ghostfacenets":
-            # EdgeFace / GhostFaceNets 모델은 [-1, 1] 범위의 입력을 바로 사용합니다.
-            # 따라서 별도의 정규화 과정이 필요 없습니다.
+            # EdgeFace / GhostFaceNets 모델은 [-1, 1] 범위의 입력을 바로 사용
             perturbed_image_norm = perturbed_image
             perturbed_gen_image_norm = perturbed_gen_image
         else:
-            # 기존 모델들은 ImageNet 정규화를 사용합니다.
+            # 기존 모델들은 ImageNet 정규화를 사용
             # 입력 이미지 범위 [-1, 1] -> [0, 1]로 변환
             perturbed_image_norm = (perturbed_image + 1) / 2
             perturbed_gen_image_norm = (perturbed_gen_image + 1) / 2
@@ -865,10 +1011,10 @@ class SolverRainbow(object):
         perturbed_gen_features = perturbed_gen_features.view(perturbed_gen_features.size(0), -1)
         
         # Concatenate feature vectors
-        combined_features = torch.cat([perturbed_features, perturbed_gen_features], dim=1)
-        
-        return combined_features
-
+        combined_features = torch.cat([perturbed_features, perturbed_gen_features], dim=1)        
+        # Cache the extracted features
+        self.cached_state = combined_features
+        return combined_features, False  # Return (state, is_cached=False)
 
     """Performs the RLAB attack (Rainbow DQN Agent)"""
     def train_attack(self):
@@ -992,7 +1138,7 @@ class SolverRainbow(object):
                     frame_idx += 1 # Increment frame_idx (for PER beta annealing)
 
                     # 1. Calculate State
-                    state = self.get_state(perturbed_image, perturbed_gen_image)
+                    state, is_cached = self.get_state(perturbed_image, perturbed_gen_image)
 
                     # 2. Select Action (Rainbow DQN Agent)
                     action = self.rl_agent.select_action(state) # NoisyNet does not use Epsilon-greedy
@@ -1056,7 +1202,7 @@ class SolverRainbow(object):
 
 
                     # 6. Calculate Next State (same as current state, or the state of the next step)
-                    next_state = self.get_state(perturbed_image, perturbed_gen_image)
+                    next_state, _ = self.get_state(perturbed_image, perturbed_gen_image)
 
 
                     # N-step buffer for test_attack episode
@@ -1242,7 +1388,8 @@ class SolverRainbow(object):
         plot_reward_trend(reward_per_episode, window_size=25, save_path=os.path.join(self.result_dir, "reward_trend.png")) # Save reward trend plot
         save_reward_moving_average_txt(reward_per_episode, window_size=25, save_path=os.path.join(self.result_dir, "reward_moving_avg.txt")) # Save moving average to a text file
         score = print_comprehensive_metrics(results, episode, total_invisible_psnr, total_invisible_ssim, total_invisible_lpips)
-        visualize_actions(action_history, image_indices, attr_indices, step_indices)
+        train_flag = True
+        visualize_actions(action_history, image_indices, attr_indices, step_indices, train_flag)
 
         # Part to save the trained model for inference
         # print_final_metrics(episode, total_perturbation_map, total_remain_map, total_l1_error, total_l2_error, attack_success, no_gan_psnr, no_gan_ssim, no_gan_lpips, gan_psnr, gan_ssim, gan_lpips)
