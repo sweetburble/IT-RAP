@@ -12,7 +12,7 @@ for i in range(1, num_runs + 1):
                 "python", "stargan_main.py",    # if using AttGAN, change to "attgan_main.py"
                 "--mode", "inference",
                 "--dataset", "MAADFace",
-                "--inference_image_num", "5",
+                "--inference_image_num", "100",
                 "--image_size", "256",
                 "--c_dim", "5",
                 "--selected_attrs", "Black_Hair", "Blond_Hair", "Brown_Hair", "Male", "Young",
@@ -21,6 +21,9 @@ for i in range(1, num_runs + 1):
                 "--model_save_dir", "checkpoints/models",
                 "--result_dir", "result_inference",
                 "--test_iters", "200000",
+                "--max_steps_per_episode", "18",
+                "--feature_extractor_name", "edgeface",
+                "--feature_extractor_frequency", "3",
                 "--batch_size", "1"
             ],
             stdout=f, stderr=subprocess.STDOUT
