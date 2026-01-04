@@ -28,10 +28,8 @@ from optuna_util import analyze_perturbation, print_debug, print_final_metrics, 
 from img_trans_methods import compress_jpeg, denoise_opencv, denoise_scikit, random_resize_padding, random_image_transforms, apply_random_transform
 
 from segment_tree import MinSegmentTree, SumSegmentTree # PrioritizedReplayBuffer
-
-from meso_net import Meso4, MesoInception4, convert_tf_weights_to_pytorch
-
-from ellzaf_ml.models import GhostFaceNetsV2
+# from meso_net import Meso4, MesoInception4, convert_tf_weights_to_pytorch
+# from ellzaf_ml.models import GhostFaceNetsV2
 
 # To maintain test reproducibility
 np.random.seed(0)
