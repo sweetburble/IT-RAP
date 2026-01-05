@@ -11,8 +11,8 @@ import math
 import gc
 import time
 from torchvision import transforms
-
 from torchvision.models import vgg19, resnet50, VGG19_Weights, ResNet50_Weights
+import sys
 
 import stargan_attacks
 from torch.nn.utils import clip_grad_norm_ # Gradient Clipping
@@ -30,7 +30,19 @@ from segment_tree import MinSegmentTree, SumSegmentTree # PrioritizedReplayBuffe
 
 from meso_net import Meso4, MesoInception4, convert_tf_weights_to_pytorch
 
-from ellzaf_ml.models import GhostFaceNetsV2
+
+
+# # df-rap
+# ##############################################################################
+# current_dir = os.path.dirname(os.path.abspath(__file__))
+# df_rap_path = os.path.join(current_dir, 'DF_RAP')
+# sys.path.append(df_rap_path)
+# from deepfakes import *
+# from attack import *
+# ##############################################################################
+
+
+
 
 # To maintain test reproducibility
 np.random.seed(0)
@@ -240,11 +252,11 @@ class PrioritizedReplayBuffer(object):
 
 """SolverRainbow for training and testing StarGAN and Rainbow DQN Attack."""
 class SolverRainbow(object):
+
+
     def __init__(self, dataset_loader, config, run = None):
         self.config = config # For Optuna
-
-        # neptune logging
-        self.run = run 
+        self.run = run # For Neptune logger
 
         # Parameters related to Data loader
         self.dataset_loader = dataset_loader
@@ -278,6 +290,8 @@ class SolverRainbow(object):
         self.test_iters = config.test_iters
 
         # Parameters related to Directories
+        self.log_dir = config.log_dir
+        self.sample_dir = config.sample_dir
         self.model_save_dir = config.model_save_dir
         self.result_dir = config.result_dir
 
@@ -299,7 +313,7 @@ class SolverRainbow(object):
         # Feature extraction caching
         self.step_counter = 0
         self.cached_state = None
-        
+
         # Parameters related to PER
         self.alpha = config.alpha # PER alpha
         self.beta_start = config.beta_start # PER beta_start
@@ -318,8 +332,379 @@ class SolverRainbow(object):
         # Initialize LPIPS Metric
         self.lpips_loss = LearnedPerceptualImagePatchSimilarity(net_type='vgg').to(self.device)
 
+
+
+
+
+        # ##[12.03] hyperparmeter tuning
+        # # Hyperparameters for reward calculation (from config)
+        # self.tau_eff = getattr(config, 'tau_eff', 0.05)
+        # self.m_eff = getattr(config, 'm_eff', 0.03)
+        # self.tau_ssim = getattr(config, 'tau_ssim', 0.96)
+        # self.m_ssim = getattr(config, 'm_ssim', 0.02)
+        # self.lam = getattr(config, 'lam', 0.5)
+        # self.eta = getattr(config, 'eta', 0.6)
+
+
+
+
+        # ##[12.16] hyperparmeter tuning
+        # self.alpha_effect = getattr(config, 'alpha_effect', 7.0)
+        # self.gamma_ssim = getattr(config, 'gamma_ssim', 0.1)
+
+
+
         self.build_model() # Build StarGAN model
         self.build_rlab_agent() # Build RLAB Agent
+
+
+        # # DF-RAP
+        # # ComGAN 로드
+        # ComG_model = torch.load('C:\\Users\\KAIST\\Desktop\\IT-RAP-main\\IT-RAP-main\\DF_RAP\\checkpoints\\ComGAN\\ComG_model.pt')
+        # self.ComG = ComG_model['ComG'].to(self.device)
+        # self.ComG.eval()
+        # self.ComG_woj = ComG_model['ComG_woj'].to(self.device)
+        # self.ComG_woj.eval()
+
+
+
+        # CMUA parameters (add after line 322)
+        self.cmua_iterations = getattr(config, 'cmua_iterations', 20)
+        self.cmua_step_size = getattr(config, 'cmua_step_size', 0.01)
+        self.cmua_epsilon = getattr(config, 'cmua_epsilon', 0.1)
+        self.cmua_momentum = getattr(config, 'cmua_momentum', 0.9)
+        self.cmua_batch_size = getattr(config, 'cmua_batch_size', 16)
+
+
+
+
+
+    ##############################################################################################################################
+    """
+    inference_cmua method to be added to SolverRainbow class in stargan_solver.py
+
+    This method performs CMUA (Cross-Model Universal Adversarial Watermark) inference.
+    """
+
+    def train_cmua(self, data_loader, result_dir):
+        """
+        Train CMUA: Generate and save universal perturbation
+        Uses training split (same as IT-RAP train)
+        """
+        import os
+        import torch
+        from cmua.cmua_implementation import CMUAAttack
+        
+        os.makedirs(result_dir, exist_ok=True)
+        
+        print(f"\n{'='*80}")
+        print(f"[CMUA Train Mode] Generating Universal Perturbation")
+        print(f"  Data split: TRAINING (same as IT-RAP train)")
+        print(f"  Training images: {self.config.cmua_train_images}")
+        print(f"  Batch size: {self.config.cmua_batch_size}")
+        print(f"  Iterations: {self.config.cmua_iterations}")
+        print(f"  Epsilon: {self.config.cmua_epsilon}")
+        print(f"  Step size: {self.config.cmua_step_size}")
+        print(f"{'='*80}\n")
+        
+        # Initialize CMUA attack
+        cmua_attack = CMUAAttack(
+            epsilon=self.config.cmua_epsilon,
+            step_size=self.config.cmua_step_size,
+            iterations=self.config.cmua_iterations,
+            momentum=self.config.cmua_momentum,
+            device=self.device
+        )
+        
+        # 전달받은 data_loader 사용 (이미 train split)
+        training_images = []
+        training_labels = []
+        
+        for batch_idx, (x_real, c_org, filename) in enumerate(data_loader):
+            if len(training_images) >= self.config.cmua_train_images:
+                break
+            
+            x_real = x_real.to(self.device)
+            c_trg_list = self.create_labels(c_org, self.c_dim, self.dataset, self.selected_attrs)
+            
+            for c_trg in c_trg_list:
+                c_trg = c_trg.to(self.device)
+                training_images.append(x_real)
+                training_labels.append(c_trg)
+            
+            print(f"[CMUA] Collected {len(training_images)}/{self.config.cmua_train_images * len(self.selected_attrs)} pairs", end='\r')
+        
+        print(f"\n[CMUA] Total collected: {len(training_images)} training pairs")
+        
+        # Batch training data
+        training_batch = torch.cat(training_images, dim=0)
+        training_labels_batch = torch.cat(training_labels, dim=0)
+        
+        print(f"[CMUA] Training batch shape: {training_batch.shape}")
+        print(f"[CMUA] Starting universal perturbation optimization...")
+        
+        # Generate universal perturbation
+        cmua_attack.attack_stargan(training_batch, self.G, training_labels_batch)
+        
+        universal_perturbation = cmua_attack.get_universal_perturbation()
+        
+        # Save perturbation
+        perturbation_path = os.path.join(result_dir, self.config.cmua_perturbation_path)
+        torch.save(universal_perturbation, perturbation_path)
+        
+        print(f"\n[CMUA] Universal perturbation saved to: {perturbation_path}")
+        print(f"[CMUA] Perturbation L_inf: {universal_perturbation.abs().max().item():.6f}")
+        print(f"[CMUA] Perturbation L2: {universal_perturbation.norm().item():.6f}")
+        print(f"\n{'='*80}")
+        print(f"[CMUA Train Complete]")
+        print(f"{'='*80}\n")
+
+
+    def inference_cmua(self, data_loader, result_dir):
+        """
+        Inference CMUA: Load saved perturbation and apply to test images
+        """
+        import os
+        import time
+        import numpy as np
+        import torch
+        from torchvision.utils import save_image
+        from optuna_util import analyze_perturbation, print_comprehensive_metrics, calculate_and_save_metrics
+        from img_trans_methods import compress_jpeg, denoise_opencv, denoise_scikit, random_resize_padding, apply_random_transform
+        from cmua.cmua_implementation import CMUAAttack
+        
+        os.makedirs(result_dir, exist_ok=True)
+        
+        # Load saved perturbation
+        perturbation_path = os.path.join(result_dir, self.config.cmua_perturbation_path)
+        
+        if not os.path.exists(perturbation_path):
+            print(f"[ERROR] Perturbation file not found: {perturbation_path}")
+            print(f"[ERROR] Please run with --cmua_mode train first!")
+            return None
+        
+        print(f"\n{'='*80}")
+        print(f"[CMUA Inference Mode] Loading Universal Perturbation")
+        print(f"  Loading from: {perturbation_path}")
+        print(f"  Inference images: {self.config.cmua_inference_images}")
+        print(f"{'='*80}\n")
+        
+        # Initialize CMUA attack and load perturbation
+        cmua_attack = CMUAAttack(
+            epsilon=self.config.cmua_epsilon,
+            step_size=self.config.cmua_step_size,
+            iterations=self.config.cmua_iterations,
+            momentum=self.config.cmua_momentum,
+            device=self.device
+        )
+        
+        universal_perturbation = torch.load(perturbation_path).to(self.device)
+        cmua_attack.universal_perturbation = universal_perturbation
+        
+        print(f"[CMUA] Loaded perturbation shape: {universal_perturbation.shape}")
+        print(f"[CMUA] Perturbation L_inf: {universal_perturbation.abs().max().item():.6f}")
+        print(f"[CMUA] Perturbation L2: {universal_perturbation.norm().item():.6f}\n")
+        
+        # Initialize result tracking
+        results = {
+            "원본(변형없음)": {"l1_error": 0.0, "l2_error": 0.0, "defense_psnr": 0.0, 
+                        "defense_ssim": 0.0, "defense_lpips": 0.0, "attack_success": 0, "total_remain_map": np.zeros((256, 256))},
+            "JPEG압축": {"l1_error": 0.0, "l2_error": 0.0, "defense_psnr": 0.0, 
+                    "defense_ssim": 0.0, "defense_lpips": 0.0, "attack_success": 0, "total_remain_map": np.zeros((256, 256))},
+            "OpenCV디노이즈": {"l1_error": 0.0, "l2_error": 0.0, "defense_psnr": 0.0, 
+                        "defense_ssim": 0.0, "defense_lpips": 0.0, "attack_success": 0, "total_remain_map": np.zeros((256, 256))},
+            "중간값스무딩": {"l1_error": 0.0, "l2_error": 0.0, "defense_psnr": 0.0, 
+                        "defense_ssim": 0.0, "defense_lpips": 0.0, "attack_success": 0, "total_remain_map": np.zeros((256, 256))},
+            "크기조정패딩": {"l1_error": 0.0, "l2_error": 0.0, "defense_psnr": 0.0, 
+                    "defense_ssim": 0.0, "defense_lpips": 0.0, "attack_success": 0, "total_remain_map": np.zeros((256, 256))},
+            "이미지변환": {"l1_error": 0.0, "l2_error": 0.0, "defense_psnr": 0.0, 
+                    "defense_ssim": 0.0, "defense_lpips": 0.0, "attack_success": 0, "total_remain_map": np.zeros((256, 256))}
+        }
+        total_invisible_psnr, total_invisible_ssim, total_invisible_lpips = 0.0, 0.0, 0.0
+        episode = 0
+        
+        total_core_time = 0.0
+        total_processing_time = 0.0
+        total_attributes_processed = 0  
+        total_images_processed = 0  
+        for infer_img_idx, (x_real, c_org, filename) in enumerate(data_loader):
+            if infer_img_idx >= self.config.cmua_inference_images:
+                break
+            
+            total_start_time = time.time()
+            image_core_time = 0.0
+            
+            x_real = x_real.to(self.device)
+            
+            noattack_result_list = [x_real]
+            jpeg_result_list = [x_real]
+            opencv_result_list = [x_real]
+            median_result_list = [x_real]
+            padding_result_list = [x_real]
+            transforms_result_list = [x_real]
+            
+            c_trg_list = self.create_labels(c_org, self.c_dim, self.dataset, self.selected_attrs)
+            
+            for idx, c_trg in enumerate(c_trg_list):
+                c_trg = c_trg.to(self.device)
+                
+                core_start_time = time.time()
+                perturbed_image = cmua_attack.apply_universal_perturbation(x_real)
+                if torch.cuda.is_available():
+                    torch.cuda.synchronize()
+                core_end_time = time.time()
+                image_core_time += (core_end_time - core_start_time)
+                
+                analyzed_perturbation_array = analyze_perturbation(perturbed_image - x_real)
+                
+                # [Inference 1] No transformation
+                with torch.no_grad():
+                    remain_perturb_array = analyze_perturbation(perturbed_image - x_real)
+                    results["원본(변형없음)"]["total_remain_map"] += remain_perturb_array
+                    original_gen_image, _ = self.G(x_real, c_trg)
+                    perturbed_gen_image_orig, _ = self.G(perturbed_image, c_trg)
+                    noattack_result_list.append(perturbed_image)
+                    noattack_result_list.append(original_gen_image)
+                    noattack_result_list.append(perturbed_gen_image_orig)
+                    results = calculate_and_save_metrics(original_gen_image, perturbed_gen_image_orig, "원본(변형없음)", results)
+                    
+                # [Inference 2] JPEG Compression
+                x_adv_jpeg = compress_jpeg(perturbed_image, quality=75)
+                with torch.no_grad():
+                    remain_perturb_array = analyze_perturbation(x_adv_jpeg - x_real)
+                    results["JPEG압축"]["total_remain_map"] += remain_perturb_array
+                    perturbed_gen_image_jpeg, _ = self.G(x_adv_jpeg, c_trg)
+                    jpeg_result_list.append(x_adv_jpeg)
+                    jpeg_result_list.append(original_gen_image)
+                    jpeg_result_list.append(perturbed_gen_image_jpeg)
+                    results = calculate_and_save_metrics(original_gen_image, perturbed_gen_image_jpeg, "JPEG압축", results)
+                
+                # [Inference 3] OpenCV Denoising
+                x_adv_opencv = denoise_opencv(perturbed_image)
+                with torch.no_grad():
+                    remain_perturb_array = analyze_perturbation(x_adv_opencv - x_real)
+                    results["OpenCV디노이즈"]["total_remain_map"] += remain_perturb_array
+                    perturbed_gen_image_opencv, _ = self.G(x_adv_opencv, c_trg)
+                    opencv_result_list.append(x_adv_opencv)
+                    opencv_result_list.append(original_gen_image)
+                    opencv_result_list.append(perturbed_gen_image_opencv)
+                    results = calculate_and_save_metrics(original_gen_image, perturbed_gen_image_opencv, "OpenCV디노이즈", results)
+                
+                # [Inference 4] Median Smoothing
+                x_adv_median = denoise_scikit(perturbed_image)
+                with torch.no_grad():
+                    remain_perturb_array = analyze_perturbation(x_adv_median - x_real)
+                    results["중간값스무딩"]["total_remain_map"] += remain_perturb_array
+                    perturbed_gen_image_median, _ = self.G(x_adv_median, c_trg)
+                    median_result_list.append(x_adv_median)
+                    median_result_list.append(original_gen_image)
+                    median_result_list.append(perturbed_gen_image_median)
+                    results = calculate_and_save_metrics(original_gen_image, perturbed_gen_image_median, "중간값스무딩", results)
+                
+                # [Inference 5] Resize and Padding
+                x_real_padding, x_adv_padding = random_resize_padding(x_real, perturbed_image)
+                with torch.no_grad():
+                    remain_perturb_array = analyze_perturbation(x_adv_padding - x_real_padding)
+                    results["크기조정패딩"]["total_remain_map"] += remain_perturb_array
+                    perturbed_gen_image_padding, _ = self.G(x_adv_padding, c_trg)
+                    padding_result_list.append(x_adv_padding)
+                    padding_result_list.append(original_gen_image)
+                    padding_result_list.append(perturbed_gen_image_padding)
+                    results = calculate_and_save_metrics(original_gen_image, perturbed_gen_image_padding, "크기조정패딩", results)
+                
+                # [Inference 6] Random Transformations
+                with torch.no_grad():
+                    original_gen_for_transform, _ = self.G(x_real, c_trg)
+                    perturbed_gen_for_transform, _ = self.G(perturbed_image, c_trg)
+
+                original_gen_transformed, perturbed_gen_transformed = apply_random_transform(
+                    original_gen_for_transform, perturbed_gen_for_transform
+                )
+
+                with torch.no_grad():
+                    results["이미지변환"]["total_remain_map"] += np.zeros((256, 256))
+                    transforms_result_list.append(perturbed_image)
+                    transforms_result_list.append(original_gen_transformed)
+                    transforms_result_list.append(perturbed_gen_transformed)
+                    results = calculate_and_save_metrics(
+                        original_gen_transformed, perturbed_gen_transformed, "이미지변환", results
+                    )
+                total_attributes_processed += 1  
+            # Calculate invisibility metrics
+            from skimage.metrics import peak_signal_noise_ratio as psnr
+            from skimage.metrics import structural_similarity as ssim
+            
+            perturbed_np = perturbed_image.squeeze().cpu().numpy().transpose(1, 2, 0)
+            x_real_np = x_real.squeeze().cpu().numpy().transpose(1, 2, 0)
+            
+            invisible_psnr = psnr(x_real_np, perturbed_np, data_range=2.0)
+            invisible_ssim = ssim(x_real_np, perturbed_np, data_range=2.0, channel_axis=2)
+            invisible_lpips = self.lpips_loss(x_real, perturbed_image).item()
+            
+            total_invisible_psnr += invisible_psnr
+            total_invisible_ssim += invisible_ssim
+            total_invisible_lpips += invisible_lpips
+            
+            total_images_processed += 1
+            
+            # Save concatenated results
+            all_result_lists = [noattack_result_list, jpeg_result_list, opencv_result_list, 
+                            median_result_list, padding_result_list, transforms_result_list]
+            
+            row_images = []
+            for result_list in all_result_lists:
+                row_concat = torch.cat(result_list, dim=3)
+                row_images.append(row_concat)
+            
+            spacing = 10
+            blank_image = torch.ones_like(row_images[0][:, :, :spacing, :]) * 1.0
+            
+            vertical_concat_list = [row_images[0]]
+            for i in range(1, len(row_images)):
+                vertical_concat_list.append(blank_image)
+                vertical_concat_list.append(row_images[i])
+            
+            x_concat = torch.cat(vertical_concat_list, dim=2)
+            result_path = os.path.join(result_dir, '{}-images.jpg'.format(infer_img_idx + 1))
+            save_image(self.denorm(x_concat.data.cpu()), result_path, nrow=1, padding=0)
+            print(f"[CMUA] Saved: {result_path}")
+            
+            if torch.cuda.is_available():
+                torch.cuda.synchronize()
+            total_end_time = time.time()
+            total_elapsed_time = total_end_time - total_start_time
+            
+            total_core_time += image_core_time
+            total_processing_time += total_elapsed_time
+        
+        score = print_comprehensive_metrics(
+            results, 
+            total_attributes_processed, 
+            total_invisible_psnr, 
+            total_invisible_ssim, 
+            total_invisible_lpips,
+            total_images_processed  
+        )
+        print(f"\n{'='*80}")
+        print(f"[CMUA Inference Complete]")
+        print(f"Total images processed: {total_images_processed}")
+        print(f"Total attributes processed: {total_attributes_processed}")
+        print(f"{'='*80}\n")
+        
+        print(f"\n[DEBUG] Attack success counts:")
+        for transform_type, metrics in results.items():
+            print(f"  {transform_type}: {metrics['attack_success']} / {total_attributes_processed}")
+        
+        return score
+        ##############################################################################################################################
+
+
+
+
+
+
+
+
 
 
 
@@ -769,6 +1154,8 @@ class SolverRainbow(object):
                 pretrained=True,
                 trust_repo="check"
             ).to(device).eval()
+
+            
         else:
             raise ValueError("Invalid FEATURE_EXTRACTOR_NAME")
 
@@ -861,98 +1248,50 @@ class SolverRainbow(object):
             c_trg_list.append(c_trg.to(self.device))
         return c_trg_list
 
+
     """
         Reward calculation function
         LPIPS: A value between [0, 1]. The lower the value, the more similar the two images are. 
         Generally, an LPIPS value greater than 0.5 is considered to indicate a human-observable difference between the two images.
     """
-    # def calculate_reward(self, original_gen_image, perturbed_gen_image, x_real, perturbed_image, c_trg):
-    #     # 1. Deepfake Defense Reward
-    #     # Use the difference between StarGAN generated images (L1, L2, LPIPS) as a reward.
-    #     # Randomly apply "image transformations" to original_gen_image and perturbed_gen_image each time, and calculate the difference between them.
-    #     transformed_x_real, transformed_perturbed_image = apply_random_transform(x_real, perturbed_image)
-    #     transformed_original, _ = self.G(transformed_x_real, c_trg)
-    #     transformed_perturbed, _ = self.G(transformed_perturbed_image, c_trg)
-
-    #     defense_l1_loss = F.l1_loss(transformed_original, transformed_perturbed)
-    #     defense_l2_loss = F.mse_loss(transformed_original, transformed_perturbed)
-
-    #     defense_lpips = self.lpips_loss(transformed_original, transformed_perturbed).mean()
-
-    #     # Scale according to L1 Error = [0, 131,072] / L2 Error = [0, 512] / LPIPS = [0, 1], then apply.
-    #     reward_defense = ((defense_l1_loss / 10) + (defense_l2_loss / 5) + defense_lpips) * 5
-
-    #     # 2. Noise Invisibility Reward
-    #     # Use the similarity between the noisy image and the original image as a reward (PSNR, SSIM, LPIPS).
-    #     x_real_np = x_real.squeeze().cpu().numpy()
-    #     perturbed_image_np = perturbed_image.squeeze().cpu().numpy()
-
-    #     if np.array_equal(x_real_np, perturbed_image_np):
-    #         invisibility_psnr = 100.0 # If the two images are identical, assign the maximum PSNR value.
-    #     else:
-    #         invisibility_psnr = psnr(x_real.squeeze().cpu().numpy(), perturbed_image.squeeze().cpu().numpy(), data_range=1.0)
-
-    #     invisibility_ssim = ssim(x_real.squeeze().cpu().numpy(), perturbed_image.squeeze().cpu().numpy(), data_range=1.0, win_size=3, channel_axis=0, multichannel=True) # Specify channel axis.
-
-    #     invisibility_lpips = self.lpips_loss(perturbed_image, x_real).mean()
-
-    #     # Scale according to PSNR = [0, 100] / SSIM = [-1, 1] / LPIPS = [0, 1], then apply.
-    #     reward_invisibility = (0.01 * invisibility_psnr) + invisibility_ssim + (1 - invisibility_lpips)
-
-    #     # Final Reward Combination (Since the two rewards have a trade-off relationship, adjust the weights while keeping their sum fixed at 1.0).
-    #     w_defense = self.reward_weight
-    #     w_invisibility = 1.0 - w_defense
-    #     total_reward = w_defense * reward_defense + w_invisibility * reward_invisibility
-
-    #     return total_reward, defense_l1_loss, defense_l2_loss, defense_lpips, invisibility_ssim, invisibility_psnr, invisibility_lpips
-
-
     def calculate_reward(self, original_gen_image, perturbed_gen_image, x_real, perturbed_image, c_trg):
-        ### a. Effectiveness
+        # 1. Deepfake Defense Reward
+        # Use the difference between StarGAN generated images (L1, L2, LPIPS) as a reward.
         # Randomly apply "image transformations" to original_gen_image and perturbed_gen_image each time, and calculate the difference between them.
         transformed_x_real, transformed_perturbed_image = apply_random_transform(x_real, perturbed_image)
         transformed_original, _ = self.G(transformed_x_real, c_trg)
         transformed_perturbed, _ = self.G(transformed_perturbed_image, c_trg)
+
         defense_l1_loss = F.l1_loss(transformed_original, transformed_perturbed)
         defense_l2_loss = F.mse_loss(transformed_original, transformed_perturbed)
+
         defense_lpips = self.lpips_loss(transformed_original, transformed_perturbed).mean()
 
-        ### b. Imperceptibility
+        # Scale according to L1 Error = [0, 131,072] / L2 Error = [0, 512] / LPIPS = [0, 1], then apply.
+        reward_defense = ((defense_l1_loss / 10) + (defense_l2_loss / 5) + defense_lpips) * 5
+
+        # 2. Noise Invisibility Reward
         # Use the similarity between the noisy image and the original image as a reward (PSNR, SSIM, LPIPS).
         x_real_np = x_real.squeeze().cpu().numpy()
         perturbed_image_np = perturbed_image.squeeze().cpu().numpy()
+
         if np.array_equal(x_real_np, perturbed_image_np):
             invisibility_psnr = 100.0 # If the two images are identical, assign the maximum PSNR value.
         else:
             invisibility_psnr = psnr(x_real.squeeze().cpu().numpy(), perturbed_image.squeeze().cpu().numpy(), data_range=1.0)
+
         invisibility_ssim = ssim(x_real.squeeze().cpu().numpy(), perturbed_image.squeeze().cpu().numpy(), data_range=1.0, win_size=3, channel_axis=0, multichannel=True) # Specify channel axis.
+
         invisibility_lpips = self.lpips_loss(perturbed_image, x_real).mean()
 
-        # parameter setting
-        tau_eff = 0.05   # effectiveness threshold
-        tau_ssim, m_ssim = 0.96, 0.02   # SSIM margin
-        m_eff = 0.03                    # L2 margin 
-        lam = 0.7                       # SSIM penalty
-        eta = 0.6                       # effectiveness weight (0~1)
+        # Scale according to PSNR = [0, 100] / SSIM = [-1, 1] / LPIPS = [0, 1], then apply.
+        reward_invisibility = (0.01 * invisibility_psnr) + invisibility_ssim + (1 - invisibility_lpips)
 
-        def clip01(x): 
-            return max(0.0, min(1.0, x))
+        # Final Reward Combination (Since the two rewards have a trade-off relationship, adjust the weights while keeping their sum fixed at 1.0).
+        w_defense = self.reward_weight
+        w_invisibility = 1.0 - w_defense
+        total_reward = w_defense * reward_defense + w_invisibility * reward_invisibility
 
-        # 1) effectiveness hinge (0→1 saturate)
-        g_l2   = clip01((float(defense_l2_loss) - float(tau_eff)) / m_eff)
-
-        # 2) imperceptibility hinge (0→1 saturate)
-        g_ssim = clip01((float(invisibility_ssim) - tau_ssim) / m_ssim)
-
-        # 3) SSIM penalty (0→1 saturate)
-        pen_ssim = clip01((tau_ssim - float(invisibility_ssim)) / m_ssim)
-
-        # effectiveness more weighting
-        base = g_l2 * (eta + (1.0 - eta) * g_ssim)
-        total_reward = base - lam * pen_ssim
-        # total_reward = max(-1.0, min(1.0, total_reward))  # optionally clip the reward to [-1, 1]
-
-        print(f"[total Reward] L2={defense_l2_loss:.4f}, lpips={invisibility_lpips:.4f}, ssim={invisibility_ssim}, total_reward={total_reward}")
         return total_reward, defense_l1_loss, defense_l2_loss, defense_lpips, invisibility_ssim, invisibility_psnr, invisibility_lpips
 
 
@@ -976,7 +1315,7 @@ class SolverRainbow(object):
 
         2. Using ResNet50 model
         Output dimension: 256x256 input image -> [1, 2048, 8, 8] feature map -> [1, 131072] flattened
-        Final output when combining 2 images: [1, 262144]
+        Final output when combining 4 images: [1, 262144]
 
         3. Using MesoNet model
         Final output when combining 2 images: [1, 64]
@@ -984,6 +1323,7 @@ class SolverRainbow(object):
         4. Using GhostFaceNets / EdgeFace model
         Output dimension: 256x256 input image -> [1, 512] embedding vector
         Final output when combining 2 images: [1, 1024]
+
     """
     def get_state(self, perturbed_image, perturbed_gen_image, force_extract=False):
         # if self.feature_extractor_name == "mesonet":
@@ -999,27 +1339,20 @@ class SolverRainbow(object):
         #     combined_features = torch.cat([meso4_features_perturbed, meso4_features_perturbed_gen, meso4_inception_features_perturbed, meso4_inception_features_perturbed_gen], dim=1)
 
         #     return combined_features
-
-
+        
         # Check if we should extract features based on frequency
         should_extract = force_extract or (self.step_counter % self.feature_extractor_frequency == 0)
         # If we don't need to extract and have cached state, return cached
         if not should_extract and self.cached_state is not None:
             return self.cached_state, True  # Return (state, is_cached=True)
 
-        
+
         if self.feature_extractor_name == "edgeface" or self.feature_extractor_name == "ghostfacenets":
-            # EdgeFace / GhostFaceNets 모델은 [-1, 1] 범위의 입력을 바로 사용합니다.
-            # 따라서 별도의 정규화 과정이 필요 없습니다.
             perturbed_image_norm = perturbed_image
             perturbed_gen_image_norm = perturbed_gen_image
         else:
-            # 기존 모델들은 ImageNet 정규화를 사용합니다.
-            # 입력 이미지 범위 [-1, 1] -> [0, 1]로 변환
             perturbed_image_norm = (perturbed_image + 1) / 2
             perturbed_gen_image_norm = (perturbed_gen_image + 1) / 2
-            
-            # ImageNet mean/std로 정규화
             normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], 
                                             std=[0.229, 0.224, 0.225])
             perturbed_image_norm = normalize(perturbed_image_norm)
@@ -1039,7 +1372,9 @@ class SolverRainbow(object):
         # Cache the extracted features
         self.cached_state = combined_features
         return combined_features, False  # Return (state, is_cached=False)
-    
+
+
+
 
     """Performs the RLAB attack (Rainbow DQN Agent)"""
     def train_attack(self):
@@ -1065,17 +1400,17 @@ class SolverRainbow(object):
 
         # Initialize a dictionary to store results for each image transformation method
         results = {
-            "원본(변형없음)": {"l1_error": 0.0, "l2_error": 0.0, "defense_psnr": 0.0, 
+            "Original(No Transform)": {"l1_error": 0.0, "l2_error": 0.0, "defense_psnr": 0.0, 
                         "defense_ssim": 0.0, "defense_lpips": 0.0, "attack_success": 0, "total_remain_map": np.zeros((256, 256))},
-            "JPEG압축": {"l1_error": 0.0, "l2_error": 0.0, "defense_psnr": 0.0, 
+            "JPEG Compression": {"l1_error": 0.0, "l2_error": 0.0, "defense_psnr": 0.0, 
                     "defense_ssim": 0.0, "defense_lpips": 0.0, "attack_success": 0, "total_remain_map": np.zeros((256, 256))},
-            "OpenCV디노이즈": {"l1_error": 0.0, "l2_error": 0.0, "defense_psnr": 0.0, 
+            "OpenCV Denoise": {"l1_error": 0.0, "l2_error": 0.0, "defense_psnr": 0.0, 
                         "defense_ssim": 0.0, "defense_lpips": 0.0, "attack_success": 0, "total_remain_map": np.zeros((256, 256))},
-            "중간값스무딩": {"l1_error": 0.0, "l2_error": 0.0, "defense_psnr": 0.0, 
+            "Median Smoothing": {"l1_error": 0.0, "l2_error": 0.0, "defense_psnr": 0.0, 
                         "defense_ssim": 0.0, "defense_lpips": 0.0, "attack_success": 0, "total_remain_map": np.zeros((256, 256))},
-            "크기조정패딩": {"l1_error": 0.0, "l2_error": 0.0, "defense_psnr": 0.0, 
+            "Resize and Pad": {"l1_error": 0.0, "l2_error": 0.0, "defense_psnr": 0.0, 
                     "defense_ssim": 0.0, "defense_lpips": 0.0, "attack_success": 0, "total_remain_map": np.zeros((256, 256))},
-            "이미지변환": {"l1_error": 0.0, "l2_error": 0.0, "defense_psnr": 0.0, 
+            "Image Transform": {"l1_error": 0.0, "l2_error": 0.0, "defense_psnr": 0.0, 
                     "defense_ssim": 0.0, "defense_lpips": 0.0, "attack_success": 0, "total_remain_map": np.zeros((256, 256))}
         }
 
@@ -1169,6 +1504,12 @@ class SolverRainbow(object):
                     else:
                         raise ValueError("Invalid action index")
 
+                    # #######################################################################################################################
+                    # ####  DF-RAP - ComGAN-aware 공격 (comgan=True)
+                    # perturbed_image = adv_attack(x_real, c_trg=c_trg, model=self.G, device=self.device, faketype="StarGAN", ComG=self.ComG, ComG_woj=self.ComG_woj, comgan=True, balance=1.0)
+                    # #######################################################################################################################
+
+
 
                     # 4. Generate a deepfake face-swapped image with StarGAN (perturbed image)
                     with torch.no_grad():
@@ -1177,21 +1518,22 @@ class SolverRainbow(object):
 
                     # 5. Calculate Reward
                     reward, defense_l1_loss, defense_l2_loss, defense_lpips, invisibility_ssim, invisibility_psnr, invisibility_lpips = self.calculate_reward(original_gen_image, perturbed_gen_image, x_real, perturbed_image, c_trg)
+                    
 
-                    # neptune logging
                     if self.run is not None:
                         self.run["train/reward"].append(float(reward))
                         self.run["train/L1"].append(float(defense_l1_loss))
                         self.run["train/L2"].append(float(defense_l2_loss))
+                        self.run["train/PSNR"].append(float(invisibility_psnr))
                         self.run["train/LPIPS"].append(float(invisibility_lpips))
                         self.run["train/SSIM"].append(float(invisibility_ssim))
 
-                    # To obtain the reward trend plot
+
+                    # to get reward trend plot
                     if isinstance(reward, torch.Tensor):
                         total_reward_this_episode += reward.item()
                     else:
-                        total_reward_this_episode += reward                    
-
+                        total_reward_this_episode += reward
 
                     reward_tensor = torch.tensor([reward], dtype=torch.float32).to(self.device) # Convert reward to a tensor
 
@@ -1235,7 +1577,7 @@ class SolverRainbow(object):
                 # [Test 1] No transformation (Original)
                 with torch.no_grad():
                     remain_perturb_array = analyze_perturbation(perturbed_image - x_real)
-                    results["원본(변형없음)"]["total_remain_map"] += remain_perturb_array
+                    results["Original(No Transform)"]["total_remain_map"] += remain_perturb_array
 
                     perturbed_gen_image_orig, _ = self.G(perturbed_image, c_trg)
 
@@ -1243,13 +1585,13 @@ class SolverRainbow(object):
                     noattack_result_list.append(original_gen_image)
                     noattack_result_list.append(perturbed_gen_image_orig)
 
-                    results = calculate_and_save_metrics(original_gen_image, perturbed_gen_image_orig, "원본(변형없음)", results)
+                    results = calculate_and_save_metrics(original_gen_image, perturbed_gen_image_orig, "Original(No Transform)", results)
 
                 # [Test 2] JPEG Compression
                 x_adv_jpeg = compress_jpeg(perturbed_image, quality=75)
                 with torch.no_grad():
                     remain_perturb_array = analyze_perturbation(x_adv_jpeg - x_real)
-                    results["JPEG압축"]["total_remain_map"] += remain_perturb_array
+                    results["JPEG Compression"]["total_remain_map"] += remain_perturb_array
 
                     perturbed_gen_image_jpeg, _ = self.G(x_adv_jpeg, c_trg)
 
@@ -1257,13 +1599,13 @@ class SolverRainbow(object):
                     jpeg_result_list.append(original_gen_image)
                     jpeg_result_list.append(perturbed_gen_image_jpeg)
 
-                    results = calculate_and_save_metrics(original_gen_image, perturbed_gen_image_jpeg, "JPEG압축", results)
+                    results = calculate_and_save_metrics(original_gen_image, perturbed_gen_image_jpeg, "JPEG Compression", results)
 
                 # [Test 3] OpenCV Denoising
                 x_adv_denoise_opencv = denoise_opencv(perturbed_image)
                 with torch.no_grad():
                     remain_perturb_array = analyze_perturbation(x_adv_denoise_opencv - x_real)
-                    results["OpenCV디노이즈"]["total_remain_map"] += remain_perturb_array
+                    results["OpenCV Denoise"]["total_remain_map"] += remain_perturb_array
 
                     perturbed_gen_image_opencv, _ = self.G(x_adv_denoise_opencv, c_trg)
 
@@ -1271,13 +1613,12 @@ class SolverRainbow(object):
                     opencv_result_list.append(original_gen_image)
                     opencv_result_list.append(perturbed_gen_image_opencv)
 
-                    results = calculate_and_save_metrics(original_gen_image, perturbed_gen_image_opencv, "OpenCV디노이즈", results)
-
+                    results = calculate_and_save_metrics(original_gen_image, perturbed_gen_image_opencv, "OpenCV Denoise", results)
                 # [Test 4] Median Smoothing
                 x_adv_median = denoise_scikit(perturbed_image)
                 with torch.no_grad():
                     remain_perturb_array = analyze_perturbation(x_adv_median - x_real)
-                    results["중간값스무딩"]["total_remain_map"] += remain_perturb_array
+                    results["Median Smoothing"]["total_remain_map"] += remain_perturb_array
 
                     perturbed_gen_image_median, _ = self.G(x_adv_median, c_trg)
 
@@ -1285,13 +1626,13 @@ class SolverRainbow(object):
                     median_result_list.append(original_gen_image)
                     median_result_list.append(perturbed_gen_image_median)
 
-                    results = calculate_and_save_metrics(original_gen_image, perturbed_gen_image_median, "중간값스무딩", results)
+                    results = calculate_and_save_metrics(original_gen_image, perturbed_gen_image_median, "Median Smoothing", results)
 
                 # [Test 5] Random resizing and padding
                 x_real_padding, x_adv_padding = random_resize_padding(x_real, perturbed_image)
                 with torch.no_grad():
                     remain_perturb_array = analyze_perturbation(x_adv_padding - x_real_padding)
-                    results["크기조정패딩"]["total_remain_map"] += remain_perturb_array
+                    results["Resize and Pad"]["total_remain_map"] += remain_perturb_array
 
                     original_gen_image_padding, _ = self.G(x_real_padding, c_trg)
                     perturbed_gen_image_padding, _ = self.G(x_adv_padding, c_trg)
@@ -1300,13 +1641,12 @@ class SolverRainbow(object):
                     padding_result_list.append(original_gen_image_padding)
                     padding_result_list.append(perturbed_gen_image_padding)
 
-                    results = calculate_and_save_metrics(original_gen_image_padding, perturbed_gen_image_padding, "크기조정패딩", results)
-
+                    results = calculate_and_save_metrics(original_gen_image_padding, perturbed_gen_image_padding, "Resize and Pad", results)
                 # [Test 6] Random image transformations -> shear, shift, zoom, rotation
                 x_real_transforms, x_adv_transforms = random_image_transforms(x_real, perturbed_image)
                 with torch.no_grad():
                     remain_perturb_array = analyze_perturbation(x_adv_transforms - x_real_transforms)
-                    results["이미지변환"]["total_remain_map"] += remain_perturb_array
+                    results["Image Transform"]["total_remain_map"] += remain_perturb_array
 
                     original_gen_image_transforms, _ = self.G(x_real_transforms, c_trg)
                     perturbed_gen_image_transforms, _ = self.G(x_adv_transforms, c_trg)
@@ -1315,8 +1655,7 @@ class SolverRainbow(object):
                     transforms_result_list.append(original_gen_image_transforms)
                     transforms_result_list.append(perturbed_gen_image_transforms)
 
-                    results = calculate_and_save_metrics(original_gen_image_transforms, perturbed_gen_image_transforms, "이미지변환", results)
-
+                    results = calculate_and_save_metrics(original_gen_image_transforms, perturbed_gen_image_transforms, "Image Transform", results)
 
                 with torch.no_grad():
                     # Calculate and accumulate PSNR, SSIM, LPIPS, which represent invisibility
@@ -1383,10 +1722,17 @@ class SolverRainbow(object):
 
             if test_img_idx >= (self.training_image_num - 1): # Process only self.training_image_num number of images
                 break
-        
-        # plot_reward_trend(reward_per_episode, window_size=25, save_path=os.path.join(self.result_dir, "reward_trend.png"))      # To obtain the reward trend plot
-        save_reward_moving_average_txt(reward_per_episode, window_size=25, save_path=os.path.join(self.result_dir, "reward_moving_avg.txt"))   # save moving average as text
-        score = print_comprehensive_metrics(results, episode, total_invisible_psnr, total_invisible_ssim, total_invisible_lpips)
+
+        try:
+            plot_reward_trend(reward_per_episode, window_size=25, save_path=os.path.join(self.result_dir, "reward_trend.png")) # Save reward trend plot
+        except Exception as e:
+            print(f"[WARN] plot_reward_trend failed but continuing: {e}")
+
+        try:
+            save_reward_moving_average_txt(reward_per_episode, window_size=25, save_path=os.path.join(self.result_dir, "reward_moving_avg.txt")) # Save moving average to a text file
+        except Exception as e:
+            print(f"[WARN] save_reward_moving_average_txt failed but continuing: {e}")
+        score = print_comprehensive_metrics(results, episode, total_invisible_psnr, total_invisible_ssim, total_invisible_lpips, combo_index=getattr(self.config, 'combo_index', None))
         train_flag = True
         visualize_actions(action_history, image_indices, attr_indices, step_indices, train_flag)
 
@@ -1406,6 +1752,8 @@ class SolverRainbow(object):
         # neptune logging
         if self.run is not None:
             self.run.stop()
+
+
 
     """Helper function to create an N-step transition"""
     def _get_n_step_transition(self, n_step_buffer):

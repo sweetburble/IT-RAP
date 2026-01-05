@@ -1,3 +1,4 @@
+# ##[12.03] hyperparmeter tuning
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
@@ -6,6 +7,7 @@ import seaborn as sns
 import os
 import datetime
 import shutil
+import json
 from sklearn.cluster import KMeans
 import time
 import gc
@@ -75,7 +77,13 @@ def print_debug(x_real, perturbed_image, original_gen_image, perturbed_gen_image
     print(f"Adversarial Example Blue Min: {adv_blue_min}, Max: {adv_blue_max}")
 
 
-def calculate_and_save_metrics(original_gen_image, perturbed_gen_image, transform_type, results):
+def calculate_and_save_metrics(
+    original_gen_image,
+    perturbed_gen_image,
+    transform_type,
+    results,
+    success_l2_threshold: float = 0.05,
+):
     """Calculate and save metrics for each transformation method."""
 
     lpips_loss = LearnedPerceptualImagePatchSimilarity(net_type='vgg').to(device)
@@ -88,7 +96,7 @@ def calculate_and_save_metrics(original_gen_image, perturbed_gen_image, transfor
     results[transform_type]["l2_error"] += l2_error.item()
     
     # Check if the attack was successful
-    if l2_error > 0.05:  # Attack success condition (L2 Error Threshold)
+    if l2_error > success_l2_threshold:  # Attack success condition (MSE threshold)
         results[transform_type]["attack_success"] += 1
     
     # Calculate deepfake defense effectiveness metrics (PSNR, SSIM, LPIPS)
@@ -138,7 +146,8 @@ def print_final_metrics(episode, total_perturbation_map, total_remain_map, total
 """
 Print and save final metrics for all transformation methods.
 """
-def print_comprehensive_metrics(results, episode, total_invisible_psnr, total_invisible_ssim, total_invisible_lpips):
+##[12.03] hyperparmeter tuning
+def print_comprehensive_metrics(results, episode, total_invisible_psnr, total_invisible_ssim, total_invisible_lpips, combo_index=None):
     # List of strings to store the results
     output_lines = []
 
@@ -151,6 +160,13 @@ def print_comprehensive_metrics(results, episode, total_invisible_psnr, total_in
     print(header2)
     print(header3)
     output_lines.extend([header1, header2, header3])
+
+    ##[12.03] hyperparmeter tuning
+    # If a hyperparameter combination index is provided, include it in the output
+    if combo_index is not None:
+        combo_line = f"Hyperparameter combo index: {combo_index}"
+        print(combo_line)
+        output_lines.append(combo_line)
 
     # --- Invisibility Metrics ---
     invisibility_line = f'Invisibility PSNR: {total_invisible_psnr / episode:.5f} dB. Invisibility SSIM: {total_invisible_ssim / episode:.5f}. Invisibility LPIPS: {total_invisible_lpips / episode:.5f}'
@@ -218,6 +234,61 @@ def print_comprehensive_metrics(results, episode, total_invisible_psnr, total_in
     avg_success_rate = (total_success_rate - 1) / (len(results) - 1) if len(results) > 1 else 0.0 # Exclude the 'no transformation' case
 
     score = (avg_invisible_psnr / 27) + (avg_invisible_ssim) + (1 - avg_invisible_lpips) + (2 * avg_success_rate)
+
+    # If a non-negative combo_index is provided, write a machine-readable JSON summary
+    # so the orchestrator can reliably pick it up before files are moved.
+    if combo_index is not None and isinstance(combo_index, int) and combo_index >= 0:
+        try:
+            combo_summary = {
+                'combo_index': combo_index,
+                'avg_invisible_psnr': float(avg_invisible_psnr),
+                'avg_invisible_ssim': float(avg_invisible_ssim),
+                'avg_invisible_lpips': float(avg_invisible_lpips),
+                'avg_success_rate': float(avg_success_rate),
+                'transforms': {}
+            }
+
+            for transform_type, metrics in results.items():
+                combo_summary['transforms'][str(transform_type)] = {
+                    'avg_l1': float(metrics['l1_error'] / episode),
+                    'avg_l2': float(metrics['l2_error'] / episode),
+                    'avg_def_psnr': float(metrics['defense_psnr'] / episode),
+                    'avg_def_ssim': float(metrics['defense_ssim'] / episode),
+                    'avg_def_lpips': float(metrics['defense_lpips'] / episode),
+                    'success_rate': float(metrics['attack_success'] / episode),
+                    'avg_remain_value': float(np.sum(metrics['total_remain_map'] / episode))
+                }
+
+            json_path = os.path.join(output_dir, f"combo_{combo_index}.json")
+            # Also include the human-readable text report (output_lines) and path to
+            # the saved `training_performance.txt` so the orchestrator can fallback-parse
+            # or present the original report if desired.
+            try:
+                combo_summary['text_report'] = "\n".join(output_lines)
+            except Exception:
+                combo_summary['text_report'] = None
+
+            try:
+                combo_summary['training_performance_file'] = file_path
+            except Exception:
+                combo_summary['training_performance_file'] = os.path.join(output_dir, 'training_performance.txt')
+
+            with open(json_path, 'w', encoding='utf-8') as jf:
+                json.dump(combo_summary, jf, indent=2, ensure_ascii=False)
+            print(f"[Info] Wrote combo JSON summary: {json_path}")
+            try:
+                import sys
+                sys.stdout.flush()
+            except Exception:
+                pass
+        except Exception as e:
+            print(f"[WARN] Failed to write combo JSON summary for combo {combo_index}: {e}")
+            try:
+                import sys
+                sys.stdout.flush()
+            except Exception:
+                pass
+
     return score
 
 def visualize_actions(action_history, image_indices, attr_indices, step_indices, train_flag=False):
@@ -252,8 +323,23 @@ def visualize_actions(action_history, image_indices, attr_indices, step_indices,
     if result_test_dir:
         for filename in os.listdir(result_test_dir):
             src_path = os.path.join(result_test_dir, filename)
-            dst_path = os.path.join(save_dir, filename)
-            shutil.move(src_path, dst_path)
+            if not os.path.isfile(src_path):
+                continue
+            ext = os.path.splitext(filename)[1].lower()
+            # Move image files
+            if ext in ['.jpg', '.jpeg', '.png', '.bmp', '.gif', '.tif', '.tiff']:
+                dst_path = os.path.join(save_dir, filename)
+                try:
+                    shutil.move(src_path, dst_path)
+                except Exception as e:
+                    print(f"[WARN] Failed to move {src_path} -> {dst_path}: {e}")
+            # Move reward_moving_avg.txt and training_performance.txt as well
+            elif filename in ['reward_moving_avg.txt', 'training_performance.txt']:
+                dst_path = os.path.join(save_dir, filename)
+                try:
+                    shutil.move(src_path, dst_path)
+                except Exception as e:
+                    print(f"[WARN] Failed to move {src_path} -> {dst_path}: {e}")
     else:
         print("'result_test', 'result_inference', or 'result_test_att' folder does not exist.")
 
@@ -725,27 +811,76 @@ def visualize_actions(action_history, image_indices, attr_indices, step_indices,
 
 # To get reward trend plots
 def plot_reward_trend(reward_list, window_size=25, save_path="reward_trend.png"):
-    import matplotlib.pyplot as plt
-    import numpy as np
+    try:
+        import matplotlib.pyplot as plt
+        import numpy as np
 
-    episodes = np.arange(len(reward_list))
-    reward_array = np.array(reward_list)
+        episodes = np.arange(len(reward_list))
+        reward_array = np.array(reward_list)
 
-    # 'valid' mode requires each window to have the same number of episodes, while 'same' or 'full' do not.
-    moving_avg = np.convolve(reward_array, np.ones(window_size)/window_size, mode='same')
+        # Guard against empty input
+        ##[12.03] hyperparmeter tuning
+        if reward_array.size == 0:
+            print(f"[WARN] plot_reward_trend: empty reward_list, skipping plot: {save_path}")
+            return
 
-    plt.figure(figsize=(10, 5))
-    plt.plot(episodes[:len(moving_avg)], moving_avg, label=f"Moving Average (window={window_size})", color='tab:blue')
-    plt.plot(episodes, reward_array, color='lightgray', alpha=0.4, label='Episodic Return')
+        # Ensure window_size is at least 1
+        if window_size is None or window_size < 1:
+            window_size = 1
 
-    plt.xlabel("Episode")
-    plt.ylabel("Reward")
-    plt.title("Reward Trend Over Episodes")
-    plt.grid(True, linestyle="--", alpha=0.5)
-    plt.legend()
-    plt.tight_layout()
-    plt.savefig(save_path)
-    plt.close()
+        # Compute moving average safely. Use 'same' to keep length, but handle unexpected shapes.
+        weights = np.ones(window_size) / float(window_size)
+        try:
+            moving_avg = np.convolve(reward_array, weights, mode='same')
+        except Exception:
+            # Fallback: compute a simple manual moving average that always returns an array
+            moving_avg = np.array([np.mean(reward_array[max(0, i - window_size + 1):i + 1]) for i in range(len(reward_array))])
+
+        # Align x (episodes) and moving_avg lengths for plotting
+        len_eps = len(episodes)
+        len_mov = len(moving_avg)
+
+        if len_mov == len_eps:
+            x_mov = episodes
+            y_mov = moving_avg
+            x_raw = episodes
+            y_raw = reward_array
+        elif len_mov < len_eps:
+            x_mov = episodes[:len_mov]
+            y_mov = moving_avg
+            x_raw = episodes[:len_mov]
+            y_raw = reward_array[:len_mov]
+        else:
+            # len_mov > len_eps: resample moving_avg to episodes length via interpolation
+            x_mov = episodes
+            xp = np.linspace(0, len_eps - 1, num=len_mov)
+            xnew = np.arange(len_eps)
+            try:
+                y_mov = np.interp(xnew, xp, moving_avg)
+            except Exception:
+                # As a safe fallback, truncate or pad
+                y_mov = moving_avg[:len_eps]
+            x_raw = episodes
+            y_raw = reward_array
+
+        plt.figure(figsize=(10, 5))
+        plt.plot(x_mov, y_mov, label=f"Moving Average (window={window_size})", color='tab:blue')
+        plt.plot(x_raw, y_raw, color='lightgray', alpha=0.4, label='Episodic Return')
+
+        plt.xlabel("Episode")
+        plt.ylabel("Reward")
+        plt.title("Reward Trend Over Episodes")
+        plt.grid(True, linestyle="--", alpha=0.5)
+        plt.legend()
+        plt.tight_layout()
+        try:
+            plt.savefig(save_path)
+        except Exception as e:
+            print(f"[WARN] Failed to save reward trend plot {save_path}: {e}")
+        plt.close()
+    except Exception as e:
+        print(f"[WARN] plot_reward_trend failed: {e}")
+        return
 
 
 # To output reward values to a txt file

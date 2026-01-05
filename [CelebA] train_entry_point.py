@@ -1,6 +1,6 @@
 import os
 os.system(
-    "python \"diffusionclip_main.py\" "         # if using AttGAN, change to "attgan_main.py"
+    "python \"stargan_main.py\" "         # if using AttGAN, change to "attgan_main.py"
     "--mode train "
     "--dataset CelebA "     
     "--training_image_num 5 "
