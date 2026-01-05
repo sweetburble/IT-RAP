@@ -89,11 +89,18 @@ bash download.sh pretrained-celeba-256x256
 **MAAD-Face Dataset**
 Follow instruction in the [MAAD-Face official repository](https://github.com/pterhoer/MAAD-Face) for downloading their data.
 
-**AttGAN Models**
+**AttGAN Model**
 Follow instruction in the [AttGAN official repository](https://github.com/elvisyjlin/AttGAN-PyTorch) for downloading their model.
 - AttGAN Pretrained Checkpoint (256_shortcut1_inject1_none_hq) This repository uses a pretrained AttGAN checkpoint named **`256_shortcut1_inject1_none_hq`**. You can download the required weights from the Google Drive folder linked below and place the checkpoint file in your project's checkpoint directory before running training or inference.
 - Download Link   
 [Google Drive folder containing the checkpoint(s)](https://drive.google.com/drive/folders/1JMQ-gtI4rmdkmnPSIHw0cMGRBRa2Hw1z?usp=sharing)
+
+**DiffusionCLIP Model**
+
+The checkpoint files required to run the code can be downloaded from the link below.
+Please place the downloaded files in the following directory: `./DiffusionCLIP/checkpoint/`
+- Download Link   
+[Google Drive folder containing the checkpoint(s)](https://drive.google.com/drive/folders/1QhsWtqK5ZTjk58Bp9EcP_FFPbLQDLNk5?usp=sharing)
 
 
 ## Attack Training
