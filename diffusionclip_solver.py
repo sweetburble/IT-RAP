@@ -31,10 +31,6 @@ from segment_tree import MinSegmentTree, SumSegmentTree # PrioritizedReplayBuffe
 
 from meso_net import Meso4, MesoInception4, convert_tf_weights_to_pytorch
 
-# import sys
-# sys.path.append('C:\\Users\\KAIST\\Desktop\\IT-RAP-main\\IT-RAP-main\\ellzaf_ml\\ellzaf_ml')
-# from models.ghostfacenetsv2 import GhostFaceNetsV2
-# # from ellzaf_ml.models import GhostFaceNetsV2
 
 # To maintain test reproducibility
 np.random.seed(0)
@@ -315,7 +311,7 @@ class SolverRainbow(object):
         self.n_step = config.n_step # N-step Learning n_step
 
         # Initialize LPIPS Metric
-        self.lpips_loss = LearnedPerceptualImagePatchSimilarity(net_type='vgg').to(self.device)
+        self.lpips_loss = LearnedPerceptualImagePatchSimilarity(net_type='vgg', normalize=False).to(self.device)
 
         # Initialize DiffusionCLIP Attacker
         self.t_0 = TEST_CONFIG['t_0']
@@ -585,62 +581,71 @@ class SolverRainbow(object):
     #     return score
 
     def load_rainbow_dqn_checkpoint(self, checkpoint_path):
-        abs_path = os.path.abspath(checkpoint_path)
-        if not os.path.exists(abs_path):
-            raise FileNotFoundError(
-                f"Rainbow DQN checkpoint not found: {abs_path}\n"
-                f"Tip: check --model_save_dir and that you initialized/saved the checkpoint in the same folder."
-            )
+        """Load Rainbow DQN checkpoint robustly.
 
-        # Avoid pickle warnings when supported by the current PyTorch version.
+        - Detect saved action_dim from the checkpoint (via advantage_layer weight shape)
+        - If it differs from current self.action_dim, rebuild the agent to match
+        - Attempt to load the model weights and optimizer state (optimizer loaded only if compatible)
+        """
+        checkpoint = torch.load(checkpoint_path, map_location=self.device)
+        sd = checkpoint.get('rainbow_dqn_state_dict', None)
+        if sd is None:
+            raise KeyError(f"Checkpoint {checkpoint_path} does not contain 'rainbow_dqn_state_dict'.")
+
+        # Try to find the advantage layer weight key to infer saved action_dim
+        adv_key = None
+        for k in sd.keys():
+            if 'advantage_layer.weight_mu' in k:
+                adv_key = k
+                break
+
+        if adv_key is not None:
+            out_features = sd[adv_key].shape[0]
+            atom_size = getattr(self, 'atom_size', None) or self.rl_agent.atom_size
+            if atom_size and out_features % atom_size == 0:
+                saved_action_dim = out_features // atom_size
+                if saved_action_dim != self.action_dim:
+                    print(f"[WARN] Checkpoint action_dim ({saved_action_dim}) != current action_dim ({self.action_dim}). Rebuilding agent to match checkpoint.")
+                    # Update action_dim and rebuild agent
+                    self.action_dim = saved_action_dim
+                    self.build_rlab_agent()
+                    self.rl_agent.dqn.to(self.device)
+                    self.rl_agent.dqn_target.to(self.device)
+            else:
+                print("[WARN] Could not reliably infer action_dim from checkpoint (atom_size mismatch). Proceeding with current agent shape.")
+        else:
+            print("[WARN] advantage_layer key not found in checkpoint. Proceeding with current agent shape.")
+
+        # Attempt to load model state dict
         try:
-            checkpoint = torch.load(abs_path, map_location=self.device, weights_only=True)
-        except TypeError:
-            checkpoint = torch.load(abs_path, map_location=self.device)
-
-        ckpt_sd = checkpoint.get('rainbow_dqn_state_dict', checkpoint)
-        ckpt_meta = checkpoint.get('meta', {}) if isinstance(checkpoint, dict) else {}
-        if ckpt_meta:
-            print(f"[INFO] Rainbow DQN checkpoint meta: {ckpt_meta}")
-
-        # First try strict load.
-        try:
-            self.rl_agent.dqn.load_state_dict(ckpt_sd)
-            opt_sd = checkpoint.get('optimizer_state_dict') if isinstance(checkpoint, dict) else None
-            if opt_sd is not None:
-                self.rl_agent.optimizer.load_state_dict(opt_sd)
-            print(f"[INFO] Rainbow DQN model loaded successfully: {abs_path}")
-            return
+            self.rl_agent.dqn.load_state_dict(sd)
+            print(f"[INFO] Rainbow DQN model loaded successfully: {checkpoint_path}")
         except RuntimeError as e:
-            # Common case: action_dim changed => advantage_layer shape mismatch.
-            model_sd = self.rl_agent.dqn.state_dict()
-            filtered_sd = {
-                k: v for k, v in ckpt_sd.items()
-                if (k in model_sd and hasattr(v, 'shape') and model_sd[k].shape == v.shape)
-            }
+            print(f"[ERROR] Failed to load full model state_dict due to shape mismatch: {e}")
+            print("Attempting partial load with strict=False (will skip incompatible keys)")
+            try:
+                self.rl_agent.dqn.load_state_dict(sd, strict=False)
+                print(f"[INFO] Partial model weights loaded (incompatible keys skipped): {checkpoint_path}")
+            except Exception as e2:
+                raise RuntimeError(f"Failed to load checkpoint even with strict=False: {e2}")
 
-            if len(filtered_sd) == 0:
-                raise
+        # Attempt to load optimizer state if compatible
+        opt_sd = checkpoint.get('optimizer_state_dict', None)
+        if opt_sd is not None:
+            try:
+                self.rl_agent.optimizer.load_state_dict(opt_sd)
+                print("[INFO] Optimizer state loaded from checkpoint.")
+            except Exception as e:
+                print(f"[WARN] Could not load optimizer state (shapes may differ): {e}. Skipping optimizer load.")
 
-            self.rl_agent.dqn.load_state_dict(filtered_sd, strict=False)
-            print(
-                "[WARN] Checkpoint did not match current network exactly; loaded only compatible weights.\n"
-                "       This usually happens when action_dim changed (e.g., 5->6), so the advantage head is re-initialized.\n"
-                f"       checkpoint: {abs_path}\n"
-                f"       loaded_keys: {len(filtered_sd)}/{len(model_sd)}\n"
-                "       If you want full compatibility, re-initialize and retrain the RL agent with the same action_dim."
-            )
-            # Optimizer state likely incompatible when parameters differ.
-            print("[WARN] Optimizer state not loaded due to partial weight load.")
-            return
 
 
 
     def build_model(self):
         """Initialize DiffusionClip Wrapper"""
-        # 사용할 체크포인트: 공격 대상 속성은 male 하나만 사용 (CelebA/MAADFace 여성 → 남성 변환)
+        # 사용할 5가지 체크포인트 정의
         self.target_attributes = {
-            "male": "./DiffusionCLIP/checkpoint/human_male_t401.pth",
+            "male": "./DiffusionCLIP/checkpoint/human_male_t401.pth"
         }
         
         self.diffusionclip_wrapper = DiffusionCLIPWrapper(
@@ -702,11 +707,7 @@ class SolverRainbow(object):
             state_dim = 1024
 
         # Variable to be used in select_action()
-        # Variable to be used in select_action(): initial exploration window
-        # Use the actual number of target attributes (single-attr mode => 1)
-        num_attrs = max(1, len(getattr(self, 'target_attributes', {})))
-        total_steps_est = int(self.max_steps_per_episode) * int(self.training_image_num) * int(num_attrs)
-        initial_ratio_steps = max(0, total_steps_est // 2)
+        initial_ratio_steps = self.max_steps_per_episode * self.training_image_num * 5 // 10
 
         action_dim = self.action_dim # Action Dimension
         self.rl_agent = RainbowDQNAgent(state_dim, action_dim, self.agent_lr, self.gamma, self.epsilon_start, self.epsilon_end, self.epsilon_decay, self.target_update_interval,
@@ -742,7 +743,7 @@ class SolverRainbow(object):
     def create_labels(self, c_org, c_dim=5, dataset=None, selected_attrs=None): # dataset='CelebA' -> None
         """Generate target domain labels for debugging and testing."""
         # Get hair color indices.
-        if dataset in ('CelebA', 'MAADFace'):
+        if dataset == 'CelebA' or 'MAADFace':
             hair_color_indices = []
             for i, attr_name in enumerate(selected_attrs):
                 if attr_name in ['Black_Hair', 'Blond_Hair', 'Brown_Hair', 'Gray_Hair']:
@@ -750,7 +751,7 @@ class SolverRainbow(object):
 
         c_trg_list = []
         for i in range(c_dim):
-            if dataset in ('CelebA', 'MAADFace'):
+            if dataset == 'CelebA' or 'MAADFace':
                 c_trg = c_org.clone()
                 if i in hair_color_indices: # Set one hair color to 1 and the rest to 0.
                     c_trg[:, i] = 1
@@ -763,143 +764,6 @@ class SolverRainbow(object):
             c_trg_list.append(c_trg.to(self.device))
         return c_trg_list
 
-    """
-        Reward calculation function
-        LPIPS: A value between [0, 1]. The lower the value, the more similar the two images are. 
-        Generally, an LPIPS value greater than 0.5 is considered to indicate a human-observable difference between the two images.
-    """
-    # def calculate_reward(self, original_gen_image, perturbed_gen_image, x_real, perturbed_image, c_trg):
-    #     # 1. Deepfake Defense Reward
-    #     # Use the difference between StarGAN generated images (L1, L2, LPIPS) as a reward.
-    #     # Randomly apply "image transformations" to original_gen_image and perturbed_gen_image each time, and calculate the difference between them.
-    #     transformed_x_real, transformed_perturbed_image = apply_random_transform(x_real, perturbed_image)
-    #     transformed_original, _ = self.G(transformed_x_real, c_trg)
-    #     transformed_perturbed, _ = self.G(transformed_perturbed_image, c_trg)
-
-    #     defense_l1_loss = F.l1_loss(transformed_original, transformed_perturbed)
-    #     defense_l2_loss = F.mse_loss(transformed_original, transformed_perturbed)
-
-    #     defense_lpips = self.lpips_loss(transformed_original, transformed_perturbed).mean()
-
-    #     # Scale according to L1 Error = [0, 131,072] / L2 Error = [0, 512] / LPIPS = [0, 1], then apply.
-    #     reward_defense = ((defense_l1_loss / 10) + (defense_l2_loss / 5) + defense_lpips) * 5
-
-    #     # 2. Noise Invisibility Reward
-    #     # Use the similarity between the noisy image and the original image as a reward (PSNR, SSIM, LPIPS).
-    #     x_real_np = x_real.squeeze().cpu().numpy()
-    #     perturbed_image_np = perturbed_image.squeeze().cpu().numpy()
-
-    #     if np.array_equal(x_real_np, perturbed_image_np):
-    #         invisibility_psnr = 100.0 # If the two images are identical, assign the maximum PSNR value.
-    #     else:
-    #         invisibility_psnr = psnr(x_real.squeeze().cpu().numpy(), perturbed_image.squeeze().cpu().numpy(), data_range=1.0)
-
-    #     invisibility_ssim = ssim(x_real.squeeze().cpu().numpy(), perturbed_image.squeeze().cpu().numpy(), data_range=1.0, win_size=3, channel_axis=0, multichannel=True) # Specify channel axis.
-
-    #     invisibility_lpips = self.lpips_loss(perturbed_image, x_real).mean()
-
-    #     # Scale according to PSNR = [0, 100] / SSIM = [-1, 1] / LPIPS = [0, 1], then apply.
-    #     reward_invisibility = (0.01 * invisibility_psnr) + invisibility_ssim + (1 - invisibility_lpips)
-
-    #     # Final Reward Combination (Since the two rewards have a trade-off relationship, adjust the weights while keeping their sum fixed at 1.0).
-    #     w_defense = self.reward_weight
-    #     w_invisibility = 1.0 - w_defense
-    #     total_reward = w_defense * reward_defense + w_invisibility * reward_invisibility
-
-    #     return total_reward, defense_l1_loss, defense_l2_loss, defense_lpips, invisibility_ssim, invisibility_psnr, invisibility_lpips
-
-
-
-
-
-
-    # # [01.05] [Diffusionclip]
-    # def calculate_reward(self, original_gen_image, perturbed_gen_image, x_real, perturbed_image, attr_name):
-    #     ### a. Effectiveness
-    #     transformed_x_real, transformed_perturbed_image = apply_random_transform(x_real, perturbed_image)
-    #     transformed_original = self.diffusionclip_wrapper.forward_edit(transformed_x_real.detach(), attr_name,t_0=self.t_0, n_inv_step=self.n_inv_step, n_test_step=self.n_test_step, require_grad=False,)
-    #     transformed_perturbed = self.diffusionclip_wrapper.forward_edit(transformed_perturbed_image.detach(), attr_name, t_0=self.t_0, n_inv_step=self.n_inv_step, n_test_step=self.n_test_step, require_grad=False,)
-
-    #     defense_l1_loss = F.l1_loss(transformed_original, transformed_perturbed)
-    #     defense_l2_loss = F.mse_loss(transformed_original, transformed_perturbed)
-
-    #     transformed_original = transformed_original.clamp(-1.0, 1.0)   # CHANGED: enforce LPIPS valid range
-    #     transformed_perturbed = transformed_perturbed.clamp(-1.0, 1.0) # CHANGED: enforce LPIPS valid range
-
-    #     defense_lpips = self.lpips_loss(transformed_original, transformed_perturbed).mean()
-
-
-    #     ### b. Imperceptibility
-    #     # Use the similarity between the noisy image and the original image as a reward (PSNR, SSIM, LPIPS).
-    #     x_real_np = x_real.squeeze().cpu().numpy()
-    #     perturbed_image_np = perturbed_image.squeeze().cpu().numpy()
-    #     if np.array_equal(x_real_np, perturbed_image_np):
-    #         invisibility_psnr = 100.0 # If the two images are identical, assign the maximum PSNR value.
-    #     else:
-    #         invisibility_psnr = psnr(x_real.squeeze().cpu().numpy(), perturbed_image.squeeze().cpu().numpy(), data_range=1.0)
-    #     invisibility_ssim = ssim(x_real.squeeze().cpu().numpy(), perturbed_image.squeeze().cpu().numpy(), data_range=1.0, win_size=3, channel_axis=0, multichannel=True) # Specify channel axis.
-    #     invisibility_lpips = self.lpips_loss(perturbed_image, x_real).mean()
-
-
-    #     ## [ENHANCED] Maximize ASR while maintaining reasonable invisibility
-    #     ## Target: PSNR 27-29, SSIM 0.6-0.9, LPIPS < 0.2
-    #     ## Key insight: Current PSNR is TOO HIGH (35dB) -> noise too weak
-    #     ## We need to encourage STRONGER attacks while keeping SSIM/LPIPS in range
-        
-    #     # Adaptive weights based on current invisibility metrics
-    #     # If PSNR is too high (>32), encourage more attack; if too low (<25), penalize
-    #     psnr_target_low, psnr_target_high = 27.0, 32.0
-    #     ssim_target_low = 0.55
-    #     lpips_target_high = 0.25
-        
-    #     # Base effectiveness weight: prioritize attack success
-    #     alpha_effect = 50.0    # L2 effectiveness weight (MAXIMIZE attack success rate)
-        
-    #     # Adaptive invisibility weight based on current PSNR
-    #     if invisibility_psnr > psnr_target_high:
-    #         # PSNR too high = noise too weak, reduce invisibility importance
-    #         beta_effect = 0.2  
-    #     elif invisibility_psnr < psnr_target_low:
-    #         # PSNR too low = noise too strong, increase invisibility importance
-    #         beta_effect = 0.6
-    #     else:
-    #         # In target range, moderate balance
-    #         beta_effect = 0.35
-        
-    #     # SSIM penalty: only penalize if below threshold
-    #     gamma_ssim = 0.12      # SSIM penalty weight
-    #     tau = ssim_target_low  # SSIM threshold
-    #     gamma_lpips = 0.4      # LPIPS penalty (STRONG - suppress DCT artifacts for consistency)
-    #     tau_lpips = 0.40       # LPIPS threshold (consistent imperceptibility)
-
-    #     ssim_gap = max(0.0, float(tau) - float(invisibility_ssim))
-    #     penalty_ssim = gamma_ssim * ssim_gap
-        
-    #     lpips_gap = max(0.0, float(tau_lpips) - float(invisibility_lpips))
-    #     penalty_lpips = gamma_lpips * lpips_gap
-        
-    #     total_reward = alpha_effect * defense_l2_loss + beta_effect * invisibility_ssim - penalty_ssim - penalty_lpips
-        
-    #     # Reward Strategy:
-    #     # - Maximizes L2 error between original_gen_image and perturbed_gen_image
-    #     # - Diff_PGD attacks toward "safe attribute target" (Young, Smiling) for natural transformation
-    #     # - Maintains invisibility: high SSIM, high PSNR for imperceptibility
-    #     # - Result: perturbed image appears to have a different, natural-looking attribute
-    #     print(f"[Attack Metrics] L2_err={defense_l2_loss:.4f}, LPIPS={invisibility_lpips:.4f}, SSIM={invisibility_ssim:.4f}, L1_err={defense_l1_loss:.4f}, Reward={total_reward:.4f}")
-    #     return total_reward, defense_l1_loss, defense_l2_loss, defense_lpips, invisibility_ssim, invisibility_psnr, invisibility_lpips
-
-
-
-
-
-
-
-    ## [AAAI]
-    """
-        Reward calculation function
-        LPIPS: A value between [0, 1]. The lower the value, the more similar the two images are. 
-        Generally, an LPIPS value greater than 0.5 is considered to indicate a human-observable difference between the two images.
-    """
     def calculate_reward(self, original_gen_image, perturbed_gen_image, x_real, perturbed_image, attr_name):
         ### a. Effectiveness
         transformed_x_real, transformed_perturbed_image = apply_random_transform(x_real, perturbed_image)
@@ -911,6 +775,10 @@ class SolverRainbow(object):
 
         transformed_original = transformed_original.clamp(-1.0, 1.0)   # CHANGED: enforce LPIPS valid range
         transformed_perturbed = transformed_perturbed.clamp(-1.0, 1.0) # CHANGED: enforce LPIPS valid range
+
+        # Additional safety: ensure tensors are in valid range and finite
+        transformed_original = torch.clamp(transformed_original, -1.0, 1.0)
+        transformed_perturbed = torch.clamp(transformed_perturbed, -1.0, 1.0)
 
         defense_lpips = self.lpips_loss(transformed_original, transformed_perturbed).mean()
 
@@ -924,8 +792,8 @@ class SolverRainbow(object):
         if np.array_equal(x_real_np, perturbed_image_np):
             invisibility_psnr = 100.0 # If the two images are identical, assign the maximum PSNR value.
         else:
-            invisibility_psnr = psnr(x_real.squeeze().cpu().numpy(), perturbed_image.squeeze().cpu().numpy(), data_range=1.0)
-        invisibility_ssim = ssim(x_real.squeeze().cpu().numpy(), perturbed_image.squeeze().cpu().numpy(), data_range=1.0, win_size=3, channel_axis=0, multichannel=True) # Specify channel axis.
+            invisibility_psnr = psnr(x_real.squeeze().cpu().numpy(), perturbed_image.squeeze().cpu().numpy(), data_range=2.0)
+        invisibility_ssim = ssim(x_real.squeeze().cpu().numpy(), perturbed_image.squeeze().cpu().numpy(), data_range=2.0, win_size=3, channel_axis=0, multichannel=True) # Specify channel axis.
         invisibility_lpips = self.lpips_loss(perturbed_image, x_real).mean()
 
         # Scale according to PSNR = [0, 100] / SSIM = [-1, 1] / LPIPS = [0, 1], then apply.
@@ -935,10 +803,7 @@ class SolverRainbow(object):
         w_defense = self.reward_weight
         w_invisibility = 1.0 - w_defense
         total_reward = w_defense * reward_defense + w_invisibility * reward_invisibility
-        print(f"[Attack Metrics] L2_err={defense_l2_loss:.4f}, LPIPS={invisibility_lpips:.4f}, SSIM={invisibility_ssim:.4f}, L1_err={defense_l1_loss:.4f}, Reward={total_reward:.4f}")
         return total_reward, defense_l1_loss, defense_l2_loss, defense_lpips, invisibility_ssim, invisibility_psnr, invisibility_lpips
-
-
 
     """
         Extracts features from images using VGG-19/ResNet50/MesoNet and returns a state vector.
@@ -1028,7 +893,6 @@ class SolverRainbow(object):
         self.load_rainbow_dqn_checkpoint(checkpoint_path)
 
         data_loader = self.dataset_loader
-        print(f"data_loader length: {len(data_loader)}")
 
         # Initialize a dictionary to store results for each image transformation method
         results = {
@@ -1058,31 +922,15 @@ class SolverRainbow(object):
         step_indices = []
         reward_per_episode = [] # To obtain the reward trend plot
 
-        # Ensure this is always defined even if a loop exits early.
-        image_action_start = 0
-
 
         for test_img_idx, (x_real, c_org, filename) in enumerate(data_loader):
-            print('\n'*3)
-            print(f"Processing image {test_img_idx+1}: {filename}")
-
-            image_action_start = len(action_history)
-
             # Prepare input images and target domain labels
             x_real = x_real.to(self.device)
 
             # DiffusionClip은 StarGAN의 label(c_org)을 사용하지 않고 체크포인트를 바꿈.
             # 따라서 c_trg_list 생성 로직 제거하고, target_attributes를 순회함.
 
-            attack_epsilon = float(getattr(self.config, 'attack_epsilon', 0.01))
-            attack_alpha = float(getattr(self.config, 'attack_alpha', 0.003))
-            attack_func = diffusionclip_attacks.AttackFunction(
-                config=self.config,
-                diffusion_model=self.diffusionclip_wrapper,
-                device=self.device,
-                epsilon=attack_epsilon,
-                alpha=attack_alpha,
-            )
+            attack_func = diffusionclip_attacks.AttackFunction(config=self.config, diffusion_model=self.diffusionclip_wrapper, device=self.device) 
 
             # Lists to save the final results as images
             noattack_result_list = [x_real]
@@ -1097,15 +945,6 @@ class SolverRainbow(object):
             attr_keys = list(self.target_attributes.keys())
 
             for idx, attr_name in enumerate(attr_keys):
-                print("=" * 100)
-                print(f"Target Attribute: {attr_name} ({idx + 1}/{len(attr_keys)})")
-
-                episode_action_start = len(action_history)
-                
-                # Clear GPU memory before processing new attribute
-                torch.cuda.empty_cache()
-                gc.collect()
-
                 # 초기 Perturbed Image 생성
                 perturbed_image = x_real.clone().detach_() + torch.tensor(np.random.uniform(-self.noise_level, self.noise_level, x_real.shape).astype('float32')).to(self.device)
 
@@ -1113,23 +952,14 @@ class SolverRainbow(object):
                 # 1. Generate Ground Truth Deepfake (Attack Target) with Diffusion
                 # =============================================
                 with torch.no_grad():
-                    # 원본 이미지 -> Diffusion 변환 (target attribute)
+                    # 원본 이미지 -> Diffusion 변환
                     original_gen_image = self.diffusionclip_wrapper.forward_edit(
-                        x_real, attr_name, t_0=self.t_0, n_inv_step=self.n_inv_step, n_test_step=self.n_test_step, require_grad=False, use_autocast=True
+                        x_real, attr_name, t_0=self.t_0, n_inv_step=self.n_inv_step, n_test_step=self.n_test_step
                     )
-                    
-                    # male 하나만 사용할 때: adversarial target은 원본 male 변환 결과를 그대로 사용
-                    safe_target = attr_name
-                    try:
-                        adversarial_target_image = original_gen_image
-                        print(f"  [Adversarial Target] {attr_name} -> {safe_target.upper()} (single-attr mode)")
-                    except Exception as e:
-                        print(f"  [Warning] Could not set adversarial target: {e}. Using original target.")
-                        adversarial_target_image = original_gen_image
                     
                     # 초기 노이즈 이미지 -> Diffusion 변환 (Initial State)
                     perturbed_gen_image = self.diffusionclip_wrapper.forward_edit(
-                        perturbed_image, attr_name, t_0=self.t_0, n_inv_step=self.n_inv_step, n_test_step=self.n_test_step, require_grad=False, use_autocast=True
+                        perturbed_image, attr_name, t_0=self.t_0, n_inv_step=self.n_inv_step, n_test_step=self.n_test_step
                     )
 
                 n_step_buffer_test_attack = deque(maxlen=self.n_step)
@@ -1143,60 +973,28 @@ class SolverRainbow(object):
 
                     # 2. Select Action (Rainbow DQN Agent)
                     action = self.rl_agent.select_action(state) # NoisyNet does not use Epsilon-greedy
+                    action_value = int(action.item())
+
+                    # action_dim이 4이면 0~3만 유효, 5이면 0~4 유효
+                    max_valid_action = self.action_dim - 1
+                    if action_value > max_valid_action:
+                        action_value = max_valid_action
 
                     # Add action to history
-                    action_history.append(action.item())
+                    action_history.append(action_value)
                     image_indices.append(test_img_idx)
                     attr_indices.append(idx)
                     step_indices.append(step)
 
                     # 3. Apply Perturbation
-                    # Action types: 
-                    #   0: Diff-PGD (Enhanced MIST-style attack with score matching)
-                    #   1-3: DCT frequency domain (LOW/MID/HIGH)
-                    #   4: DDIM Inversion Phase Attack (latent space corruption)
-                    #   5: Pure Score Matching Attack (AdvDM-style Monte-Carlo)
-                    if action == 0:
-                        # Insert noise in the spatial domain using DiffAttack-style Diff-PGD
-                        # Key: Deviated-reconstruction loss + uniform timestep sampling
-                        perturbed_image, _ = attack_func.Diff_PGD(
-                            perturbed_image,
-                            adversarial_target_image,
-                            attr_name,
-                            X_base=x_real,
-                        )
-                        print("Action: Enhanced MIST-PGD (Score + Deviated Reconstruction)")
-                    elif action in [1, 2, 3]:
-                        # 주파수 기반 노이즈 (파괴 목적)
-                        freq_band = ['LOW', 'MID', 'HIGH'][action - 1]
-                        dct_iter = int(getattr(self.config, 'dct_iter', 1))
-                        perturbed_image, _ = attack_func.perturb_frequency_domain(
-                            perturbed_image,
-                            attr_name,
-                            freq_band=freq_band,
-                            iter=dct_iter,
-                            X_base=x_real,
-                            original_gen_image=original_gen_image,
-                        )
-                        print(f"Action: Destruction DCT ({freq_band} band)")
-                    elif action == 4:
-                        # DDIM Inversion Phase Attack (Latent Space Corruption)
-                        perturbed_image, _ = attack_func.attack_inversion_phase(
-                            perturbed_image,
-                            attr_name,
-                            X_base=x_real,
-                        )
-                        print("Action: Inversion Attack (Latent Corruption)")
-                    elif action == 5:
-                        # Pure Score Matching Attack (AdvDM-style)
-                        perturbed_image, _ = attack_func.score_matching_attack(
-                            perturbed_image,
-                            attr_name,
-                            X_base=x_real,
-                        )
-                        print("Action: Score Matching Attack (AdvDM Monte-Carlo)")
+                    # Action types: 0=Diff-PGD, 1=DCT-LOW, 2=DCT-MID, 3=DCT-HIGH
+                    if action_value == 0:
+                        perturbed_image, _ = attack_func.Diff_PGD(perturbed_image, original_gen_image, attr_name)
+                    elif action_value in [1, 2, 3]:
+                        freq_band = ['LOW', 'MID', 'HIGH'][action_value - 1]
+                        perturbed_image, _ = attack_func.perturb_frequency_domain(perturbed_image, attr_name, freq_band=freq_band)
                     else:
-                        raise ValueError(f"Invalid action index: {action}")
+                        raise ValueError(f"Invalid action index: {action_value}. Valid actions: 0-3")
 
 
                     # 4. Generate a deepfake face-swapped image with StarGAN (perturbed image)
@@ -1253,47 +1051,33 @@ class SolverRainbow(object):
 
                     # NoisyNet Reset Noise
                     self.rl_agent.reset_noise() # Reset noise at every step
-
-                # Print action distribution for this episode (= one attribute on one image)
-                try:
-                    from collections import Counter
-
-                    episode_actions = action_history[episode_action_start:]
-                    action_counts = Counter(int(a) for a in episode_actions)
-                    total_actions = max(1, len(episode_actions))
-                    ordered = [action_counts.get(i, 0) for i in range(int(self.action_dim))]
-                    ratios = [c / total_actions for c in ordered]
-                    print(
-                        f"[Action Distribution: Episode] img={test_img_idx + 1} attr={attr_name} "
-                        + ", ".join(
-                            [f"a{i}={ordered[i]}({ratios[i]:.1%})" for i in range(int(self.action_dim))]
-                        )
-                    )
-                except Exception as e:
-                    print(f"[Action Distribution: Episode] Failed to compute: {e}")
                 
-                reward_per_episode.append(total_reward_this_episode)  # To obtain the reward trend plot - save after one episode ends
-
-                # Function defined in util.py. Prints various debug logs.
-                # print_debug(x_real, perturbed_image, original_gen_image, perturbed_gen_image)
+                reward_per_episode.append(total_reward_this_episode)
 
                 # To determine the average amount of noise inserted into one image, accumulate it.
                 analyzed_perturbation_array = analyze_perturbation(perturbed_image - x_real)
                 total_perturbation_map += analyzed_perturbation_array
+
+                # ============================================
+                # [최적화] Test 1~4에서 perturbed_image는 동일 -> forward_edit 1회만 호출
+                # ============================================
+                with torch.no_grad():
+                    # 한 번만 계산하고 재사용!
+                    perturbed_gen_image_cached = self.diffusionclip_wrapper.forward_edit(perturbed_image, attr_name)
 
                 # [Test 1] No transformation (Original)
                 with torch.no_grad():
                     remain_perturb_array = analyze_perturbation(perturbed_image - x_real)
                     results["원본(변형없음)"]["total_remain_map"] += remain_perturb_array
 
-                    perturbed_gen_image_orig = self.diffusionclip_wrapper.forward_edit(perturbed_image, attr_name)
-
                     noattack_result_list.append(perturbed_image)
                     noattack_result_list.append(original_gen_image)
-                    noattack_result_list.append(perturbed_gen_image_orig)
-                    orig_m = original_gen_image.clamp(-1.0, 1.0)            # CHANGED: enforce LPIPS valid range
-                    pert_m = perturbed_gen_image_orig.clamp(-1.0, 1.0)      # CHANGED: enforce LPIPS valid range
-                    results = calculate_and_save_metrics(orig_m, pert_m, "원본(변형없음)", results)
+                    noattack_result_list.append(perturbed_gen_image_cached)  # 캐시 사용
+
+                    results = calculate_and_save_metrics(
+                        original_gen_image.clamp(-1, 1),
+                        perturbed_gen_image_cached.clamp(-1, 1),
+                        "원본(변형없음)", results)
 
                 # [Test 2] JPEG Compression
                 x_adv_jpeg = compress_jpeg(perturbed_image, quality=75)
@@ -1301,14 +1085,15 @@ class SolverRainbow(object):
                     remain_perturb_array = analyze_perturbation(x_adv_jpeg - x_real)
                     results["JPEG압축"]["total_remain_map"] += remain_perturb_array
 
-                    perturbed_gen_image_jpeg = self.diffusionclip_wrapper.forward_edit(x_adv_jpeg, attr_name)
-
+                    # 캐시 재사용 (perturbed_image 동일)
                     jpeg_result_list.append(x_adv_jpeg)
                     jpeg_result_list.append(original_gen_image)
-                    jpeg_result_list.append(perturbed_gen_image_jpeg)
-                    orig_m = original_gen_image.clamp(-1.0, 1.0)            # CHANGED: enforce LPIPS valid range
-                    pert_m = perturbed_gen_image_jpeg.clamp(-1.0, 1.0)      # CHANGED: enforce LPIPS valid range
-                    results = calculate_and_save_metrics(orig_m, pert_m, "JPEG압축", results)
+                    jpeg_result_list.append(perturbed_gen_image_cached)
+
+                    results = calculate_and_save_metrics(
+                        original_gen_image.clamp(-1, 1),
+                        perturbed_gen_image_cached.clamp(-1, 1),
+                        "JPEG압축", results)
 
                 # [Test 3] OpenCV Denoising
                 x_adv_denoise_opencv = denoise_opencv(perturbed_image)
@@ -1316,14 +1101,15 @@ class SolverRainbow(object):
                     remain_perturb_array = analyze_perturbation(x_adv_denoise_opencv - x_real)
                     results["OpenCV디노이즈"]["total_remain_map"] += remain_perturb_array
 
-                    perturbed_gen_image_opencv = self.diffusionclip_wrapper.forward_edit(x_adv_denoise_opencv, attr_name)
-
+                    # 캐시 재사용
                     opencv_result_list.append(x_adv_denoise_opencv)
                     opencv_result_list.append(original_gen_image)
-                    opencv_result_list.append(perturbed_gen_image_opencv)
-                    orig_m = original_gen_image.clamp(-1.0, 1.0)            # CHANGED: enforce LPIPS valid range
-                    pert_m = perturbed_gen_image_opencv.clamp(-1.0, 1.0)    # CHANGED: enforce LPIPS valid range
-                    results = calculate_and_save_metrics(orig_m, pert_m, "OpenCV디노이즈", results)
+                    opencv_result_list.append(perturbed_gen_image_cached)
+
+                    results = calculate_and_save_metrics(
+                        original_gen_image.clamp(-1, 1),
+                        perturbed_gen_image_cached.clamp(-1, 1),
+                        "OpenCV디노이즈", results)
 
                 # [Test 4] Median Smoothing
                 x_adv_median = denoise_scikit(perturbed_image)
@@ -1331,46 +1117,62 @@ class SolverRainbow(object):
                     remain_perturb_array = analyze_perturbation(x_adv_median - x_real)
                     results["중간값스무딩"]["total_remain_map"] += remain_perturb_array
 
-                    perturbed_gen_image_median = self.diffusionclip_wrapper.forward_edit(x_adv_median, attr_name)
-
+                    # 캐시 재사용
                     median_result_list.append(x_adv_median)
                     median_result_list.append(original_gen_image)
-                    median_result_list.append(perturbed_gen_image_median)
-                    orig_m = original_gen_image.clamp(-1.0, 1.0)            # CHANGED: enforce LPIPS valid range
-                    pert_m = perturbed_gen_image_median.clamp(-1.0, 1.0)    # CHANGED: enforce LPIPS valid range
-                    results = calculate_and_save_metrics(orig_m, pert_m, "중간값스무딩", results)
+                    median_result_list.append(perturbed_gen_image_cached)
+
+                    results = calculate_and_save_metrics(
+                        original_gen_image.clamp(-1, 1),
+                        perturbed_gen_image_cached.clamp(-1, 1),
+                        "중간값스무딩", results)
 
                 # [Test 5] Random resizing and padding
-                x_real_padding, x_adv_padding = random_resize_padding(x_real, perturbed_image)
+                # Original: original_gen_image 재사용 (이미 계산됨!)
+                # Adversarial: 변형 먼저 적용 → 그 후 DiffusionCLIP 적용
                 with torch.no_grad():
-                    remain_perturb_array = analyze_perturbation(x_adv_padding - x_real_padding)
-                    results["크기조정패딩"]["total_remain_map"] += remain_perturb_array
-
-                    original_gen_image_padding = self.diffusionclip_wrapper.forward_edit(x_real_padding, attr_name)
+                    # original_gen_image는 이미 계산됨 - 재사용!
+                    original_gen_image_padding, x_adv_padding = random_resize_padding(original_gen_image, perturbed_image)
+                    
+                    # Adversarial: 변형된 이미지에 DiffusionCLIP 적용
                     perturbed_gen_image_padding = self.diffusionclip_wrapper.forward_edit(x_adv_padding, attr_name)
+                    
+                    # remain_perturb 계산 (별도 호출 - x_real과 perturbed_image에 동일 변형 적용)
+                    x_real_padding, x_adv_padding_for_remain = random_resize_padding(x_real, perturbed_image)
+                    remain_perturb_array = analyze_perturbation(x_adv_padding_for_remain - x_real_padding)
+                    results["크기조정패딩"]["total_remain_map"] += remain_perturb_array
 
                     padding_result_list.append(x_adv_padding)
                     padding_result_list.append(original_gen_image_padding)
                     padding_result_list.append(perturbed_gen_image_padding)
-                    orig_m = original_gen_image_padding.clamp(-1.0, 1.0)    # CHANGED: enforce LPIPS valid range
-                    pert_m = perturbed_gen_image_padding.clamp(-1.0, 1.0)   # CHANGED: enforce LPIPS valid range
-                    results = calculate_and_save_metrics(orig_m, pert_m, "크기조정패딩", results)
 
-                # [Test 6] Random image transformations -> shear, shift, zoom, rotation
-                x_real_transforms, x_adv_transforms = random_image_transforms(x_real, perturbed_image)
+                    results = calculate_and_save_metrics(
+                        original_gen_image_padding.clamp(-1, 1),
+                        perturbed_gen_image_padding.clamp(-1, 1),
+                        "크기조정패딩", results)
+
+                # [Test 6] Random image transformations
+                # Original: original_gen_image 재사용!
                 with torch.no_grad():
-                    remain_perturb_array = analyze_perturbation(x_adv_transforms - x_real_transforms)
+                    # original_gen_image는 이미 계산됨 - 재사용!
+                    original_gen_image_transforms, x_adv_transforms = random_image_transforms(original_gen_image, perturbed_image)
+                    
+                    # Adversarial: 변형된 이미지에 DiffusionCLIP 적용
+                    perturbed_gen_image_transforms = self.diffusionclip_wrapper.forward_edit(x_adv_transforms, attr_name)
+                    
+                    # remain_perturb 계산
+                    x_real_transforms, x_adv_transforms_for_remain = random_image_transforms(x_real, perturbed_image)
+                    remain_perturb_array = analyze_perturbation(x_adv_transforms_for_remain - x_real_transforms)
                     results["이미지변환"]["total_remain_map"] += remain_perturb_array
-
-                    original_gen_image_transforms = self.diffusionclip_wrapper.forward_edit(x_real_transforms, attr_name)
-                    perturbed_gen_image_transforms= self.diffusionclip_wrapper.forward_edit(x_adv_transforms, attr_name)
 
                     transforms_result_list.append(x_adv_transforms)
                     transforms_result_list.append(original_gen_image_transforms)
                     transforms_result_list.append(perturbed_gen_image_transforms)
-                    orig_m = original_gen_image_transforms.clamp(-1.0, 1.0)   # CHANGED: enforce LPIPS valid range
-                    pert_m = perturbed_gen_image_transforms.clamp(-1.0, 1.0)  # CHANGED: enforce LPIPS valid range
-                    results = calculate_and_save_metrics(orig_m, pert_m, "이미지변환", results)
+
+                    results = calculate_and_save_metrics(
+                        original_gen_image_transforms.clamp(-1, 1),
+                        perturbed_gen_image_transforms.clamp(-1, 1),
+                        "이미지변환", results)
 
 
                 with torch.no_grad():
@@ -1424,29 +1226,9 @@ class SolverRainbow(object):
             save_image(self.denorm(x_concat.data.cpu()), result_path, nrow=1, padding=0)
 
 
-            # Print action distribution for this image (debug / verification)
-            try:
-                from collections import Counter
-
-                image_actions = action_history[image_action_start:]
-                action_counts = Counter(int(a) for a in image_actions)
-                total_actions = max(1, len(image_actions))
-                ordered = [action_counts.get(i, 0) for i in range(int(self.action_dim))]
-                ratios = [c / total_actions for c in ordered]
-                print(
-                    "[Action Distribution: Image] "
-                    + ", ".join(
-                        [f"a{i}={ordered[i]}({ratios[i]:.1%})" for i in range(int(self.action_dim))]
-                    )
-                )
-            except Exception as e:
-                print(f"[Action Distribution: Image] Failed to compute: {e}")
-
-
             # Save the Rainbow DQN agent after each episode
             checkpoint_path = os.path.join(self.model_save_dir, f'final_rainbow_dqn.pth')            
             try: 
-                os.makedirs(self.model_save_dir, exist_ok=True)
                 torch.save({
                 'rainbow_dqn_state_dict': self.rl_agent.dqn.state_dict(),
                 'optimizer_state_dict': self.rl_agent.optimizer.state_dict(),
@@ -1462,28 +1244,17 @@ class SolverRainbow(object):
         # plot_reward_trend(reward_per_episode, window_size=25, save_path=os.path.join(self.result_dir, "reward_trend.png"))      # To obtain the reward trend plot
         save_reward_moving_average_txt(reward_per_episode, window_size=25, save_path=os.path.join(self.result_dir, "reward_moving_avg.txt"))   # save moving average as text
         score = print_comprehensive_metrics(results, episode, total_invisible_psnr, total_invisible_ssim, total_invisible_lpips)
-        visualize_actions(action_history, image_indices, attr_indices, step_indices)
-
-        # Print overall action distribution (all episodes/images)
+        # Ensure result directory used by visualize_actions exists (optuna_util expects it)
         try:
-            from collections import Counter
-
-            action_counts = Counter(int(a) for a in action_history)
-            total_actions = max(1, len(action_history))
-            ordered = [action_counts.get(i, 0) for i in range(int(self.action_dim))]
-            ratios = [c / total_actions for c in ordered]
-            print(
-                "[Action Distribution: Overall] "
-                + ", ".join([f"a{i}={ordered[i]}({ratios[i]:.1%})" for i in range(int(self.action_dim))])
-            )
-        except Exception as e:
-            print(f"[Action Distribution: Overall] Failed to compute: {e}")
+            os.makedirs('result_inference', exist_ok=True)
+        except Exception:
+            pass
+        visualize_actions(action_history, image_indices, attr_indices, step_indices)
 
         # Part for saving the trained model to perform inference
         # print_final_metrics(episode, total_perturbation_map, total_remain_map, total_l1_error, total_l2_error, attack_success, no_gan_psnr, no_gan_ssim, no_gan_lpips, gan_psnr, gan_ssim, gan_lpips)
         checkpoint_path = os.path.join(self.model_save_dir, f'final_rainbow_dqn.pth')
         try: 
-            os.makedirs(self.model_save_dir, exist_ok=True)
             torch.save({
                 'rainbow_dqn_state_dict': self.rl_agent.dqn.state_dict(),
                 'optimizer_state_dict': self.rl_agent.optimizer.state_dict(),
@@ -1547,8 +1318,6 @@ class RainbowDQNAgent:
         self.steps_done = 0
         self.initial_ratio_steps = initial_ratio_steps
 
-        self.action_dim = int(action_dim)
-
         # Rainbow DQN Network (DuelingNet, NoisyNet, Categorical DQN)
         self.dqn = RainbowDQNNet(state_dim, action_dim, atom_size, self.support) # policy net -> changed to dqn, RainbowDQNNet
         self.dqn_target = RainbowDQNNet(state_dim, action_dim, atom_size, self.support) # target net -> changed to dqn_target, RainbowDQNNet
@@ -1561,15 +1330,24 @@ class RainbowDQNAgent:
     """
     def select_action(self, state):
         # [For testing] Force selection of only one action
-        return torch.tensor([[0]], device=device)
+        # return torch.tensor([[0]], device=device)
+
 
         # In the initial steps, select actions with a 4:1:1:4 ratio
-        # In the initial steps, do explicit exploration.
-        # IMPORTANT: this must include all actions (e.g., action 4 for inversion).
         self.steps_done += 1
         if self.steps_done <= self.initial_ratio_steps:
-            a = random.randrange(self.action_dim)
-            return torch.tensor([[a]], device=device)
+            # Generate a random number between 0-9
+            rand_num = random.randint(0, 9)
+            
+            # Implement 4:1:1:4 ratio (actions 0, 1, 2, 3 are selected with probabilities 40%, 10%, 10%, 40% respectively)
+            if rand_num <= 3:  # 0-3 (40%)
+                return torch.tensor([[0]], device=device)  # PGD method
+            elif rand_num == 4:  # 4 (10%)
+                return torch.tensor([[1]], device=device)  # Low-frequency
+            elif rand_num == 5:  # 5 (10%)
+                return torch.tensor([[2]], device=device)  # Mid-frequency
+            else:  # 6-9 (40%)
+                return torch.tensor([[3]], device=device)  # High-frequency
         
         # After the initial steps, select actions using the existing NoisyNet method
         with torch.no_grad():

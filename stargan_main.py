@@ -9,9 +9,6 @@ os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
 os.environ['TORCH_USE_CUDA_DSA'] = '1'
 
 
-
-
-
 def str2bool(v):
     return v.lower() in ('true')
 
@@ -34,19 +31,12 @@ def main(config):
     if not os.path.exists(config.result_dir):
         os.makedirs(config.result_dir)
 
-
-
-
-
-
     ##############################################################################################################
     data_loader_mode = config.mode
     if config.mode == 'inference' and config.attack_method == 'cmua' and config.cmua_mode == 'train':
         data_loader_mode = 'train'
         print(f"[INFO] CMUA train mode: using training split (same as IT-RAP train)")
     ##############################################################################################################
-
-
 
 
     # Data loader
@@ -81,21 +71,14 @@ def main(config):
             solver.restore_model(config.test_iters)
             # Perform inference
             solver.inference_rainbow_dqn(dataset_loader, result_dir=config.result_dir)
-        
         if config.attack_method == 'cmua':
             # Load StarGAN model (required for both modes)
             solver.restore_model(config.test_iters)
-            
             if config.cmua_mode == 'train':
-                # CMUA Train: Generate universal perturbation
-                # dataset_loader는 이미 train split 사용 중
                 solver.train_cmua(dataset_loader, result_dir=config.result_dir)
             
             elif config.cmua_mode == 'inference':
-                # CMUA Inference: Apply saved perturbation
-                # dataset_loader는 test split 사용
                 solver.inference_cmua(dataset_loader, result_dir=config.result_dir)
-            
             else:
                 print(f"[ERROR] Unknown cmua_mode: {config.cmua_mode}")
                 print("[INFO] Use --cmua_mode train or --cmua_mode inference")
@@ -141,27 +124,7 @@ if __name__ == '__main__':
     # Test configuration
     parser.add_argument('--test_iters', type=int, default=200000, help='test model from this step')
 
-    
 
-
-    
-    # # [12.04]
-    # # [hyperparameters tuning setting]
-    # # Hyperparameters for reward calculation (can be passed from entrypoint)
-    # parser.add_argument('--tau_eff', type=float, default=0.05, help='effectiveness threshold')
-    # parser.add_argument('--m_eff', type=float, default=0.03, help='L2 margin for effectiveness')
-    # parser.add_argument('--tau_ssim', type=float, default=0.96, help='SSIM threshold')
-    # parser.add_argument('--m_ssim', type=float, default=0.02, help='SSIM margin')
-    # parser.add_argument('--lam', type=float, default=0.5, help='SSIM penalty weight')
-    # parser.add_argument('--eta', type=float, default=0.6, help='effectiveness weight')
-    # parser.add_argument('--combo_index', type=int, default=-1, help='Hyperparameter combination index (for logging)')
-
-
-
-    # ## [12.11] updated hyperparameter tuning settings
-    # parser.add_argument('--alpha_effect', type=float, default=7.0, help='effectiveness weight')
-    # parser.add_argument('--gamma_ssim', type=float, default=0.1, help='penalty weight')
-    # parser.add_argument('--combo_index', type=int, default=-1, help='Hyperparameter combination index (for logging)')
 
     # Miscellaneous settings 
     parser.add_argument('--num_workers', type=int, default=1)
