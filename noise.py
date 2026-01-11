@@ -6,7 +6,7 @@ def PIL_to_cv2(image):
     image = image[:,:,::-1].copy()
     return image
 
-def cv2_to_PIL(image):  
+def cv2_to_PIL(image):
     image = image[:,:,::-1].copy().astype(np.uint8)
     image = Image.fromarray(image)
     return image
@@ -27,13 +27,13 @@ def noisy(noise_typ, image):
         s_vs_p = 0.5
         amount = 0.004
         out = np.copy(image)
-        # Salt mode
+
         num_salt = np.ceil(amount * image.size * s_vs_p)
         coords = [np.random.randint(0, i - 1, int(num_salt))
                 for i in image.shape]
         out[coords] = 1
 
-        # Pepper mode
+
         num_pepper = np.ceil(amount* image.size * (1. - s_vs_p))
         coords = [np.random.randint(0, i - 1, int(num_pepper))
                 for i in image.shape]
@@ -47,6 +47,6 @@ def noisy(noise_typ, image):
     elif noise_typ =="speckle":
         row,col,ch = image.shape
         gauss = np.random.randn(row,col,ch)
-        gauss = gauss.reshape(row,col,ch)        
+        gauss = gauss.reshape(row,col,ch)
         noisy = image + image * gauss
         return cv2_to_PIL(noisy)

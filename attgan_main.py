@@ -1,4 +1,4 @@
-# ##[12.03] hyperparmeter tuning
+
 import neptune
 import os
 import argparse
@@ -14,13 +14,13 @@ def str2bool(v):
     return v.lower() in ('true')
 
 def main(config):
-    # For fast training
+
     cudnn.benchmark = True
     run = neptune.init_run(
         project="your_project/your_project_subname",
         api_token="xxx",
     )
-    # Create directories if not exist
+
     if not os.path.exists(config.log_dir):
         os.makedirs(config.log_dir)
     if not os.path.exists(config.model_save_dir):
@@ -30,15 +30,15 @@ def main(config):
     if not os.path.exists(config.result_dir):
         os.makedirs(config.result_dir)
 
-    ##############################################################################################################
+
     data_loader_mode = config.mode
     if config.mode == 'inference' and config.attack_method == 'cmua' and config.cmua_mode == 'train':
         data_loader_mode = 'train'
         print(f"[INFO] CMUA train mode: using training split (same as IT-RAP train)")
-    ##############################################################################################################
 
 
-    # Data loader
+
+
     dataset_loader = None
 
     if config.dataset == 'CelebA':
@@ -51,7 +51,7 @@ def main(config):
                                 'MAADFace', config.mode, config.num_workers, config.start_index)
 
 
-    # [11.09]
+
     solver = SolverRainbow(dataset_loader, config, run = run)
     print("[NEPTUNE DEBUG] solver.run is None?:", solver.run is None)
     print("[NEPTUNE DEBUG] solver.run obj:", getattr(solver, "run", None))
@@ -62,12 +62,12 @@ def main(config):
         solver.train_attack()
 
     elif config.mode == 'inference':
-        # checkpoint_path = os.path.join(config.model_save_dir, f'rainbow_dqn_final_{config.test_iters}.pth')
-        checkpoint_path = os.path.join(config.model_save_dir, f'final_rainbow_dqn.pth') # rainbow_dqn_agent.ckpt
+
+        checkpoint_path = os.path.join(config.model_save_dir, f'final_rainbow_dqn.pth')
         solver.load_rainbow_dqn_checkpoint(checkpoint_path)
-        # Load StarGAN model (required)
+
         solver.restore_model(config.test_iters)
-        # Perform inference
+
         solver.inference_rainbow_dqn(dataset_loader, result_dir=config.result_dir)
 
 
@@ -75,8 +75,8 @@ def main(config):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
-    # Existing parameter settings...
-    # Model configuration
+
+
     parser.add_argument('--c_dim', type=int, default=5, help='dimension of domain labels (1st dataset)')
     parser.add_argument('--c2_dim', type=int, default=8, help='dimension of domain labels (2nd dataset)')
     parser.add_argument('--celeba_crop_size', type=int, default=178, help='crop size for the CelebA dataset')
@@ -90,8 +90,8 @@ if __name__ == '__main__':
     parser.add_argument('--lambda_gp', type=float, default=10, help='weight for gradient penalty')
     parser.add_argument('--selected_attrs', '--list', nargs='+', help='selected attributes for the CelebA dataset',
                         default=['Black_Hair', 'Blond_Hair', 'Brown_Hair', 'Male', 'Young'])
-    
-    # Training configuration
+
+
     parser.add_argument('--dataset', type=str, default='CelebA', choices=['CelebA', 'RaFD', 'Both', 'MAADFace'])
     parser.add_argument('--g_lr', type=float, default=0.0001, help='learning rate for G')
     parser.add_argument('--d_lr', type=float, default=0.0001, help='learning rate for D')
@@ -100,31 +100,31 @@ if __name__ == '__main__':
 
     parser.add_argument('--training_image_num', type=int, default=5, help='Number of images used to train Rainbow DQN')
     parser.add_argument('--inference_image_num', type=int, default=5, help='Number of images used to inference Rainbow DQN')
-    # Starting index to resume training from the point of interruption when training with the MAAD-FACE dataset
+
     parser.add_argument('--start_index', type=int, default=0, help='Data index to start training from')
     parser.add_argument('--reward_weight', type=float, default=0.5, help='Reward weight (Deepfake defense: reward_weight, Imperceptibility: 1 - reward_weight)')
 
 
-    # Test configuration
+
     parser.add_argument('--test_iters', type=int, default=200000, help='test model from this step')
 
-    # Miscellaneous settings
-    parser.add_argument('--num_workers', type=int, default=1)
-    parser.add_argument('--mode', type=str, default='train', choices=['train', 'inference']) # Changed mode to train
 
-    # Directory settings
+    parser.add_argument('--num_workers', type=int, default=1)
+    parser.add_argument('--mode', type=str, default='train', choices=['train', 'inference'])
+
+
     parser.add_argument('--images_dir', type=str, default='data/celeba/images')
     parser.add_argument('--attr_path', type=str, default='data/celeba/list_attr_celeba.txt')
     parser.add_argument('--log_dir', type=str, default='stargan/logs')
     parser.add_argument('--model_save_dir', type=str, default='checkpoints/models')
     parser.add_argument('--sample_dir', type=str, default='stargan/samples')
-    parser.add_argument('--result_dir', type=str, default='stargan/result_test') # Changed result_dir
+    parser.add_argument('--result_dir', type=str, default='stargan/result_test')
 
-    parser.add_argument('--epsilon_start', type=float, default=0.95, help='epsilon start value for exploration') # Currently not in use
-    parser.add_argument('--epsilon_end', type=float, default=0.04, help='epsilon end value for exploration') # Currently not in use
-    parser.add_argument('--epsilon_decay', type=int, default=1000, help='epsilon decay steps') # Currently not in use
+    parser.add_argument('--epsilon_start', type=float, default=0.95, help='epsilon start value for exploration')
+    parser.add_argument('--epsilon_end', type=float, default=0.04, help='epsilon end value for exploration')
+    parser.add_argument('--epsilon_decay', type=int, default=1000, help='epsilon decay steps')
 
-    # Rainbow DQN Hyperparameters (PER, Categorical DQN, N-step Learning)
+
     parser.add_argument('--batch_size', type=int, default=1, help='How many images to process at once')
     parser.add_argument('--agent_lr', type=float, default=0.0001, help='learning rate for Agent')
     parser.add_argument('--gamma', type=float, default=0.96, help='discount factor for RL')
@@ -140,17 +140,17 @@ if __name__ == '__main__':
     parser.add_argument('--beta_start', type=float, default=0.35, help='PER beta start parameter')
     parser.add_argument('--beta_frames', type=int, default=4000, help='PER beta frames parameter')
     parser.add_argument('--prior_eps', type=float, default=1e-6, help='PER prior epsilon parameter')
-    parser.add_argument('--v_min', type=int, default=-5, help='Categorical DQN v_min value') 
-    parser.add_argument('--v_max', type=int, default=5, help='Categorical DQN v_max value') 
+    parser.add_argument('--v_min', type=int, default=-5, help='Categorical DQN v_min value')
+    parser.add_argument('--v_max', type=int, default=5, help='Categorical DQN v_max value')
     parser.add_argument('--atom_size', type=int, default=11, help='Categorical DQN atom size')
-    parser.add_argument('--n_step', type=int, default=5, help='N-step Learning step size') 
+    parser.add_argument('--n_step', type=int, default=5, help='N-step Learning step size')
 
     parser.add_argument('--pgd_iter', type=int, default=1, help='Action 0, number of PGD iterations')
     parser.add_argument('--dct_iter', type=int, default=1, help='Action 1~3, number of frequency noise insertion iterations')
     parser.add_argument('--dct_coefficent', type=int, default=3, help='DCT noise coefficient')
     parser.add_argument('--dct_clamp', type=int, default=2, help='DCT noise value clamp')
 
-    ##############################################################################################################
+
     parser.add_argument('--attack_method', type=str, default='itrap', choices=['itrap', 'cmua'], help='Attack method: itrap (IT-RAP with Rainbow DQN) or cmua (CMUA universal perturbation)')
     parser.add_argument('--cmua_mode', type=str, default='inference', choices=['train', 'inference'], help='CMUA mode: train (generate perturbation) or inference (apply saved perturbation)')
     parser.add_argument('--cmua_train_images', type=int, default=100, help='Number of training images for CMUA (128)')
@@ -162,7 +162,7 @@ if __name__ == '__main__':
     parser.add_argument('--cmua_epsilon', type=float, default=0.05, help='Epsilon for CMUA (0.05)')
     parser.add_argument('--cmua_momentum', type=float, default=0.9, help='Momentum for CMUA gradient updates')
     parser.add_argument('--cmua_batch_size', type=int, default=64, help='Batch size for CMUA training (64)')
-    ##############################################################################################################
+
 
 
     config = parser.parse_args()

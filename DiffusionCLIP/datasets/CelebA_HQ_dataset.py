@@ -40,7 +40,7 @@ class MultiResolutionDataset(Dataset):
         return img
 
 
-################################################################################
+
 
 def get_celeba_dataset(data_root, config):
     train_transform = tfs.Compose([tfs.ToTensor(),
@@ -58,6 +58,3 @@ def get_celeba_dataset(data_root, config):
 
 
     return train_dataset, test_dataset
-
-
-

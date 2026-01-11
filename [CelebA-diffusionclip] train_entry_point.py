@@ -10,7 +10,7 @@ if hasattr(torch.backends.cuda, 'enable_flash_sdp'):
 os.system(
     "python \"diffusionclip_main.py\" "
     "--mode train "
-    "--dataset CelebA "     
+    "--dataset CelebA "
     "--training_image_num 100 "
     "--image_size 256 "
     "--c_dim 1 "

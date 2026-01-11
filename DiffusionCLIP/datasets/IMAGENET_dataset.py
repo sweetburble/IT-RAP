@@ -16,7 +16,7 @@ def get_imagenet_dataset(data_root, config, class_num=None, random_crop=True, ra
     return train_dataset, test_dataset
 
 
-###################################################################
+
 
 
 class IMAGENET_dataset(Dataset):
@@ -49,19 +49,19 @@ class IMAGENET_dataset(Dataset):
 
         arr = arr.astype(np.float32) / 127.5 - 1
 
-        # y = [self.class_num, IMAGENET_DIC[str(self.class_num)][0], IMAGENET_DIC[str(self.class_num)][1]]
-        # y = self.class_num
 
-        return np.transpose(arr, [2, 0, 1])#, y
+
+
+        return np.transpose(arr, [2, 0, 1])
 
     def __len__(self):
         return len(self.image_paths)
 
 
 def center_crop_arr(pil_image, image_size):
-    # We are not on a new enough PIL to support the `reducing_gap`
-    # argument, which uses BOX downsampling at powers of two first.
-    # Thus, we do it by hand to improve downsample quality.
+
+
+
     while min(*pil_image.size) >= 2 * image_size:
         pil_image = pil_image.resize(
             tuple(x // 2 for x in pil_image.size), resample=Image.BOX
@@ -83,9 +83,9 @@ def random_crop_arr(pil_image, image_size, min_crop_frac=0.8, max_crop_frac=1.0)
     max_smaller_dim_size = math.ceil(image_size / min_crop_frac)
     smaller_dim_size = random.randrange(min_smaller_dim_size, max_smaller_dim_size + 1)
 
-    # We are not on a new enough PIL to support the `reducing_gap`
-    # argument, which uses BOX downsampling at powers of two first.
-    # Thus, we do it by hand to improve downsample quality.
+
+
+
     while min(*pil_image.size) >= 2 * smaller_dim_size:
         pil_image = pil_image.resize(
             tuple(x // 2 for x in pil_image.size), resample=Image.BOX

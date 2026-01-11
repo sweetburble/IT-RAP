@@ -50,7 +50,7 @@ class DiffusionCLIP(object):
             self.trg_txts = SRC_TRG_TXT_DIC[self.args.edit_attr][1]
 
     def edit_images_from_dataset(self):
-        # ----------- Models -----------#
+
         print(self.args.exp)
         if self.config.data.dataset == "LSUN":
             if self.config.data.category == "bedroom":
@@ -91,7 +91,7 @@ class DiffusionCLIP(object):
             print(f"{model_path} is loaded.")
             models.append(model_i)
 
-        # ----------- Precompute Latents thorugh Inversion Process -----------#
+
         print("Prepare identity latent")
         seq_inv = np.linspace(0, 1, self.args.n_inv_step) * self.args.t_0
         seq_inv = [int(s) for s in list(seq_inv)]
@@ -170,7 +170,7 @@ class DiffusionCLIP(object):
             torch.save(img_lat_pairs, pairs_path)
 
 
-        # ----------- Generative Process -----------#
+
         print(f"Sampling type: {self.args.sample_type.upper()} with eta {self.args.eta}")
         if self.args.n_test_step != 0:
             seq_test = np.linspace(0, 1, self.args.n_test_step) * self.args.t_0
@@ -213,7 +213,7 @@ class DiffusionCLIP(object):
 
 
     def edit_one_image(self):
-        # ----------- Data -----------#
+
         n = self.args.bs_test
 
         if self.args.align_face and self.config.data.dataset in ["FFHQ", "CelebA_HQ"]:
@@ -226,7 +226,7 @@ class DiffusionCLIP(object):
         img = img.resize((self.config.data.image_size, self.config.data.image_size), Image.Resampling.LANCZOS)
         img = np.array(img)/255
 
-        # 혹시라도 RGBA로 들어온 경우 안전하게 앞 3채널만 사용
+
         if img.ndim == 3 and img.shape[2] == 4:
             img = img[:, :, :3]
 
@@ -235,7 +235,7 @@ class DiffusionCLIP(object):
         tvu.save_image(img, os.path.join(self.args.image_folder, f'0_orig.png'))
         x0 = (img - 0.5) * 2.
 
-        # ----------- Models -----------#
+
         if self.config.data.dataset == "LSUN":
             if self.config.data.category == "bedroom":
                 url = "https://image-editing-test-12345.s3-us-west-2.amazonaws.com/checkpoints/bedroom.ckpt"
@@ -281,7 +281,7 @@ class DiffusionCLIP(object):
             models.append(model_i)
 
         with torch.no_grad():
-            #---------------- Invert Image to Latent in case of Deterministic Inversion process -------------------#
+
             if self.args.deterministic_inv:
                 x_lat_path = os.path.join(self.args.image_folder, f'x_lat_t{self.args.t_0}_ninv{self.args.n_inv_step}.pth')
                 if not os.path.exists(x_lat_path):
@@ -312,7 +312,7 @@ class DiffusionCLIP(object):
                     x_lat = torch.load(x_lat_path)
 
 
-            # ----------- Generative Process -----------#
+
             print(f"Sampling type: {self.args.sample_type.upper()} with eta {self.args.eta}, "
                   f" Steps: {self.args.n_test_step}/{self.args.t_0}")
             if self.args.n_test_step != 0:
@@ -349,7 +349,7 @@ class DiffusionCLIP(object):
                                            hybrid=self.args.hybrid_noise,
                                            hybrid_config=HYBRID_CONFIG)
 
-                        # added intermediate step vis
+
                         if (i - 99) % 100 == 0:
                             tvu.save_image((x + 1) * 0.5, os.path.join(self.args.image_folder,
                                                                        f'2_lat_t{self.args.t_0}_ninv{self.args.n_inv_step}_ngen{self.args.n_test_step}_{i}_it{it}.png'))
@@ -364,19 +364,19 @@ class DiffusionCLIP(object):
                                                            f'3_gen_t{self.args.t_0}_it{it}_ninv{self.args.n_inv_step}_ngen{self.args.n_test_step}_mrat{self.args.model_ratio}.png'))
 
     def unseen2unseen(self):
-        # ----------- Data -----------#
+
         n = self.args.bs_test
-        # if self.args.align_face and self.config.data.dataset in ["FFHQ", "CelebA_HQ"]:
-        #     try:
-        #         img = run_alignment(self.args.img_path, output_size=self.config.data.image_size)
-        #     except:
-        #         img = Image.open(self.args.img_path).convert("RGB")
-        # else:
+
+
+
+
+
+
         img = Image.open(self.args.img_path).convert("RGB")
         img = img.resize((self.config.data.image_size, self.config.data.image_size), Image.Resampling.LANCZOS)
         img = np.array(img) / 255
 
-        # 혹시라도 RGBA로 들어온 경우 안전하게 앞 3채널만 사용
+
         if img.ndim == 3 and img.shape[2] == 4:
             img = img[:, :, :3]
 
@@ -387,7 +387,7 @@ class DiffusionCLIP(object):
         img = img.repeat(n, 1, 1, 1)
         x0 = (img - 0.5) * 2.
 
-        # ----------- Models -----------#
+
         if self.config.data.dataset == "LSUN":
             if self.config.data.category == "bedroom":
                 url = "https://image-editing-test-12345.s3-us-west-2.amazonaws.com/checkpoints/bedroom.ckpt"
@@ -435,13 +435,13 @@ class DiffusionCLIP(object):
                 seq_test = [int(s) for s in list(seq_test)]
                 seq_test_next = [-1] + list(seq_test[:-1])
 
-                # ----------- Stochastic Foward Process -----------#
+
                 e = torch.randn_like(x0)
                 a = (1 - self.betas).cumprod(dim=0)
                 x = x0 * a[self.args.t_0 - 1].sqrt() + e * (1.0 - a[self.args.t_0 - 1]).sqrt()
                 tvu.save_image((x + 1) * 0.5, os.path.join(self.args.image_folder, f'1_lat.png'))
 
-                # ----------- Generative Process -----------#
+
                 with tqdm(total=len(seq_test), desc="Generative process {}".format(it)) as progress_bar:
                     for i, j in zip(reversed(seq_test), reversed(seq_test_next)):
                         t = (torch.ones(n) * i).to(self.device)
@@ -462,7 +462,7 @@ class DiffusionCLIP(object):
                 tvu.save_image((x + 1) * 0.5, os.path.join(self.args.image_folder,
                                                            f'2_gen_t{self.args.t_0}_it{it}_ninv{self.args.n_inv_step}_ngen{self.args.n_test_step}.png'))
 
-            # ---------------- Invert Image to Latent through Detriministic Process -------------------#
+
             seq_inv = np.linspace(0, 1, self.args.n_inv_step) * self.args.t_0
             seq_inv = [int(s) for s in list(seq_inv)]
             seq_inv_next = [-1] + list(seq_inv[:-1])
@@ -486,7 +486,7 @@ class DiffusionCLIP(object):
                 tvu.save_image((x_lat + 1) * 0.5, os.path.join(self.args.image_folder,
                                                                f'3_lat_ninv{self.args.n_inv_step}.png'))
 
-            #----------- Generative Process with Finetuned Model -----------#
+
             print(f"Sampling type: {self.args.sample_type.upper()} with eta {self.args.eta}, "
                   f" Steps: {self.args.n_test_step}/{self.args.t_0}")
             if self.args.n_test_step != 0:

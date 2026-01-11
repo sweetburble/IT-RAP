@@ -63,7 +63,7 @@ class Residual(Module):
 
 
 
-######################################################################################
+
 
 
 class Flatten(Module):
@@ -78,7 +78,6 @@ def l2_norm(input, axis=1):
 
 
 class Bottleneck(namedtuple('Block', ['in_channel', 'depth', 'stride'])):
-	""" A named tuple describing a ResNet block. """
 
 
 def get_block(in_channel, depth, num_units, stride=2):
@@ -88,24 +87,24 @@ def get_block(in_channel, depth, num_units, stride=2):
 def get_blocks(num_layers):
 	if num_layers == 50:
 		blocks = [
-			get_block(in_channel=64, depth=64, num_units=3),
-			get_block(in_channel=64, depth=128, num_units=4),
-			get_block(in_channel=128, depth=256, num_units=14),
-			get_block(in_channel=256, depth=512, num_units=3)
+		 get_block(in_channel=64, depth=64, num_units=3),
+		 get_block(in_channel=64, depth=128, num_units=4),
+		 get_block(in_channel=128, depth=256, num_units=14),
+		 get_block(in_channel=256, depth=512, num_units=3)
 		]
 	elif num_layers == 100:
 		blocks = [
-			get_block(in_channel=64, depth=64, num_units=3),
-			get_block(in_channel=64, depth=128, num_units=13),
-			get_block(in_channel=128, depth=256, num_units=30),
-			get_block(in_channel=256, depth=512, num_units=3)
+		 get_block(in_channel=64, depth=64, num_units=3),
+		 get_block(in_channel=64, depth=128, num_units=13),
+		 get_block(in_channel=128, depth=256, num_units=30),
+		 get_block(in_channel=256, depth=512, num_units=3)
 		]
 	elif num_layers == 152:
 		blocks = [
-			get_block(in_channel=64, depth=64, num_units=3),
-			get_block(in_channel=64, depth=128, num_units=8),
-			get_block(in_channel=128, depth=256, num_units=36),
-			get_block(in_channel=256, depth=512, num_units=3)
+		 get_block(in_channel=64, depth=64, num_units=3),
+		 get_block(in_channel=64, depth=128, num_units=8),
+		 get_block(in_channel=128, depth=256, num_units=36),
+		 get_block(in_channel=256, depth=512, num_units=3)
 		]
 	else:
 		raise ValueError("Invalid number of layers: {}. Must be one of [50, 100, 152]".format(num_layers))
@@ -138,13 +137,13 @@ class bottleneck_IR(Module):
 			self.shortcut_layer = MaxPool2d(1, stride)
 		else:
 			self.shortcut_layer = Sequential(
-				Conv2d(in_channel, depth, (1, 1), stride, bias=False),
-				BatchNorm2d(depth)
+			 Conv2d(in_channel, depth, (1, 1), stride, bias=False),
+			 BatchNorm2d(depth)
 			)
 		self.res_layer = Sequential(
-			BatchNorm2d(in_channel),
-			Conv2d(in_channel, depth, (3, 3), (1, 1), 1, bias=False), PReLU(depth),
-			Conv2d(depth, depth, (3, 3), stride, 1, bias=False), BatchNorm2d(depth)
+		 BatchNorm2d(in_channel),
+		 Conv2d(in_channel, depth, (3, 3), (1, 1), 1, bias=False), PReLU(depth),
+		 Conv2d(depth, depth, (3, 3), stride, 1, bias=False), BatchNorm2d(depth)
 		)
 
 	def forward(self, x):
@@ -160,16 +159,16 @@ class bottleneck_IR_SE(Module):
 			self.shortcut_layer = MaxPool2d(1, stride)
 		else:
 			self.shortcut_layer = Sequential(
-				Conv2d(in_channel, depth, (1, 1), stride, bias=False),
-				BatchNorm2d(depth)
+			 Conv2d(in_channel, depth, (1, 1), stride, bias=False),
+			 BatchNorm2d(depth)
 			)
 		self.res_layer = Sequential(
-			BatchNorm2d(in_channel),
-			Conv2d(in_channel, depth, (3, 3), (1, 1), 1, bias=False),
-			PReLU(depth),
-			Conv2d(depth, depth, (3, 3), stride, 1, bias=False),
-			BatchNorm2d(depth),
-			SEModule(depth, 16)
+		 BatchNorm2d(in_channel),
+		 Conv2d(in_channel, depth, (3, 3), (1, 1), 1, bias=False),
+		 PReLU(depth),
+		 Conv2d(depth, depth, (3, 3), stride, 1, bias=False),
+		 BatchNorm2d(depth),
+		 SEModule(depth, 16)
 		)
 
 	def forward(self, x):

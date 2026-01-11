@@ -4,13 +4,6 @@ import torch.nn as nn
 
 
 def get_timestep_embedding(timesteps, embedding_dim):
-    """
-    This matches the implementation in Denoising Diffusion Probabilistic Models:
-    From Fairseq.
-    Build sinusoidal embeddings.
-    This matches the implementation in tensor2tensor, but differs slightly
-    from the description in Section 3.5 of "Attention Is All You Need".
-    """
     assert len(timesteps.shape) == 1
 
     half_dim = embedding_dim // 2
@@ -19,13 +12,13 @@ def get_timestep_embedding(timesteps, embedding_dim):
     emb = emb.to(device=timesteps.device)
     emb = timesteps.float()[:, None] * emb[None, :]
     emb = torch.cat([torch.sin(emb), torch.cos(emb)], dim=1)
-    if embedding_dim % 2 == 1:  # zero pad
+    if embedding_dim % 2 == 1:
         emb = torch.nn.functional.pad(emb, (0, 1, 0, 0))
     return emb
 
 
 def nonlinearity(x):
-    # swish
+
     return x * torch.sigmoid(x)
 
 
@@ -57,7 +50,7 @@ class Downsample(nn.Module):
         super().__init__()
         self.with_conv = with_conv
         if self.with_conv:
-            # no asymmetric padding in torch conv, must do it ourselves
+
             self.conv = torch.nn.Conv2d(in_channels,
                                         in_channels,
                                         kernel_size=3,
@@ -168,19 +161,19 @@ class AttnBlock(nn.Module):
         k = self.k(h_)
         v = self.v(h_)
 
-        # compute attention
+
         b, c, h, w = q.shape
         q = q.reshape(b, c, h * w)
-        q = q.permute(0, 2, 1)  # b,hw,c
-        k = k.reshape(b, c, h * w)  # b,c,hw
-        w_ = torch.bmm(q, k)  # b,hw,hw    w[b,i,j]=sum_c q[b,i,c]k[b,c,j]
+        q = q.permute(0, 2, 1)
+        k = k.reshape(b, c, h * w)
+        w_ = torch.bmm(q, k)
         w_ = w_ * (int(c) ** (-0.5))
         w_ = torch.nn.functional.softmax(w_, dim=2)
 
-        # attend to values
+
         v = v.reshape(b, c, h * w)
-        w_ = w_.permute(0, 2, 1)  # b,hw,hw (first hw of k, second of q)
-        # b, c,hw (hw of q) h_[b,c,j] = sum_i v[b,c,i] w_[b,i,j]
+        w_ = w_.permute(0, 2, 1)
+
         h_ = torch.bmm(v, w_)
         h_ = h_.reshape(b, c, h, w)
 
@@ -208,7 +201,7 @@ class DDPM(nn.Module):
         self.resolution = resolution
         self.in_channels = in_channels
 
-        # timestep embedding
+
         self.temb = nn.Module()
         self.temb.dense = nn.ModuleList([
             torch.nn.Linear(self.ch,
@@ -217,7 +210,7 @@ class DDPM(nn.Module):
                             self.temb_ch),
         ])
 
-        # downsampling
+
         self.conv_in = torch.nn.Conv2d(in_channels,
                                        self.ch,
                                        kernel_size=3,
@@ -249,7 +242,7 @@ class DDPM(nn.Module):
                 curr_res = curr_res // 2
             self.down.append(down)
 
-        # middle
+
         self.mid = nn.Module()
         self.mid.block_1 = ResnetBlock(in_channels=block_in,
                                        out_channels=block_in,
@@ -261,7 +254,7 @@ class DDPM(nn.Module):
                                        temb_channels=self.temb_ch,
                                        dropout=dropout)
 
-        # upsampling
+
         self.up = nn.ModuleList()
         for i_level in reversed(range(self.num_resolutions)):
             block = nn.ModuleList()
@@ -284,9 +277,9 @@ class DDPM(nn.Module):
             if i_level != 0:
                 up.upsample = Upsample(block_in, resamp_with_conv)
                 curr_res = curr_res * 2
-            self.up.insert(0, up)  # prepend to get consistent order
+            self.up.insert(0, up)
 
-        # end
+
         self.norm_out = Normalize(block_in)
         self.conv_out = torch.nn.Conv2d(block_in,
                                         out_ch,
@@ -297,13 +290,13 @@ class DDPM(nn.Module):
     def forward(self, x, t):
         assert x.shape[2] == x.shape[3] == self.resolution
 
-        # timestep embedding
+
         temb = get_timestep_embedding(t, self.ch)
         temb = self.temb.dense[0](temb)
         temb = nonlinearity(temb)
         temb = self.temb.dense[1](temb)
 
-        # downsampling
+
         hs = [self.conv_in(x)]
         for i_level in range(self.num_resolutions):
             for i_block in range(self.num_res_blocks):
@@ -314,13 +307,13 @@ class DDPM(nn.Module):
             if i_level != self.num_resolutions - 1:
                 hs.append(self.down[i_level].downsample(hs[-1]))
 
-        # middle
+
         h = hs[-1]
         h = self.mid.block_1(h, temb)
         h = self.mid.attn_1(h)
         h = self.mid.block_2(h, temb)
 
-        # upsampling
+
         for i_level in reversed(range(self.num_resolutions)):
             for i_block in range(self.num_res_blocks + 1):
                 h = self.up[i_level].block[i_block](
@@ -330,7 +323,7 @@ class DDPM(nn.Module):
             if i_level != 0:
                 h = self.up[i_level].upsample(h)
 
-        # end
+
         h = self.norm_out(h)
         h = nonlinearity(h)
         h = self.conv_out(h)

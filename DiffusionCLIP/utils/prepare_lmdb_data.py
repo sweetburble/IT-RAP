@@ -1,6 +1,3 @@
-"""
-    Refer to https://github.com/rosinality/stylegan2-pytorch/blob/master/prepare_data.py
-"""
 
 import argparse
 from io import BytesIO
@@ -16,7 +13,7 @@ from torchvision.transforms import functional as trans_fn
 
 def resize_and_convert(img, size, resample, quality=100):
     img = trans_fn.resize(img, (size, size), resample)
-    # img = trans_fn.center_crop(img, size)
+
     buffer = BytesIO()
     img.save(buffer, format="jpeg", quality=quality)
     val = buffer.getvalue()

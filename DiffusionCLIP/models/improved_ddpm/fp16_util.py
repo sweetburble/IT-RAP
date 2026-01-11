@@ -1,6 +1,3 @@
-"""
-Helpers to train with 16-bit precision.
-"""
 
 import numpy as np
 import torch as th
@@ -13,9 +10,6 @@ INITIAL_LOG_LOSS_SCALE = 20.0
 
 
 def convert_module_to_f16(l):
-    """
-    Convert primitive modules to float16.
-    """
     if isinstance(l, (nn.Conv1d, nn.Conv2d, nn.Conv3d)):
         l.weight.data = l.weight.data.half()
         if l.bias is not None:
@@ -23,9 +17,6 @@ def convert_module_to_f16(l):
 
 
 def convert_module_to_f32(l):
-    """
-    Convert primitive modules to float32, undoing convert_module_to_f16().
-    """
     if isinstance(l, (nn.Conv1d, nn.Conv2d, nn.Conv3d)):
         l.weight.data = l.weight.data.float()
         if l.bias is not None:
@@ -33,10 +24,6 @@ def convert_module_to_f32(l):
 
 
 def make_master_params(param_groups_and_shapes):
-    """
-    Copy model parameters into a (differently-shaped) list of full-precision
-    parameters.
-    """
     master_params = []
     for param_group, shape in param_groups_and_shapes:
         master_param = nn.Parameter(
@@ -50,10 +37,6 @@ def make_master_params(param_groups_and_shapes):
 
 
 def model_grads_to_master_grads(param_groups_and_shapes, master_params):
-    """
-    Copy the gradients from the model parameters into the master parameters
-    from make_master_params().
-    """
     for master_param, (param_group, shape) in zip(
         master_params, param_groups_and_shapes
     ):
@@ -63,11 +46,8 @@ def model_grads_to_master_grads(param_groups_and_shapes, master_params):
 
 
 def master_params_to_model_params(param_groups_and_shapes, master_params):
-    """
-    Copy the master parameter data back into the model parameters.
-    """
-    # Without copying to a list, if a generator is passed, this will
-    # silently not copy any parameters.
+
+
     for master_param, (param_group, _) in zip(master_params, param_groups_and_shapes):
         for (_, param), unflat_master_param in zip(
             param_group, unflatten_master_params(param_group, master_param.view(-1))
@@ -132,7 +112,7 @@ def zero_master_grads(master_params):
 
 def zero_grad(model_params):
     for param in model_params:
-        # Taken from https://pytorch.org/docs/stable/_modules/torch/optim/optimizer.html#Optimizer.add_param_group
+
         if param.grad is not None:
             param.grad.detach_()
             param.grad.zero_()

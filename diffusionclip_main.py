@@ -14,7 +14,7 @@ def str2bool(v):
 
 def main(config):
     cudnn.benchmark = True
-    
+
     run = neptune.init_run(
         project="your_workspace/your_project",
         api_token="xxx",
@@ -62,8 +62,8 @@ if __name__ == '__main__':
     parser.add_argument('--lambda_gp', type=float, default=10, help='weight for gradient penalty')
     parser.add_argument('--selected_attrs', '--list', nargs='+', help='selected attributes for the CelebA dataset',
                         default=['Black_Hair', 'Blond_Hair', 'Brown_Hair', 'Male', 'Young'])
-    
-    # Training configuration
+
+
     parser.add_argument('--dataset', type=str, default='CelebA', choices=['CelebA', 'Both', 'MAADFace'])
     parser.add_argument('--g_lr', type=float, default=0.0001, help='learning rate for G')
     parser.add_argument('--d_lr', type=float, default=0.0001, help='learning rate for D')
@@ -99,7 +99,7 @@ if __name__ == '__main__':
     parser.add_argument('--action_dim', type=int, default=6, help='max action dimension (6 = includes score matching attack)')
     parser.add_argument('--noise_level', type=float, default=0.008, help='noise level for RLAB perturbation (increased)')
     parser.add_argument('--feature_extractor_name', type=str, default="edgeface", help='Image feature extraction for State (mesonet, resnet50, vgg19, ghostfacenets, edgeface)')
-    
+
     parser.add_argument('--inv_attack_iter', type=int, default=6, help='DDIM inversion attack iterations')
     parser.add_argument('--score_attack_iter', type=int, default=10, help='Score matching attack iterations')
     parser.add_argument('--diffusion_t0', type=int, default=400, help='Maximum timestep for diffusion attacks')
@@ -109,10 +109,10 @@ if __name__ == '__main__':
     parser.add_argument('--beta_start', type=float, default=0.35, help='PER beta start parameter')
     parser.add_argument('--beta_frames', type=int, default=4000, help='PER beta frames parameter')
     parser.add_argument('--prior_eps', type=float, default=1e-6, help='PER prior epsilon parameter')
-    parser.add_argument('--v_min', type=int, default=-5, help='Categorical DQN v_min value') 
-    parser.add_argument('--v_max', type=int, default=5, help='Categorical DQN v_max value') 
+    parser.add_argument('--v_min', type=int, default=-5, help='Categorical DQN v_min value')
+    parser.add_argument('--v_max', type=int, default=5, help='Categorical DQN v_max value')
     parser.add_argument('--atom_size', type=int, default=11, help='Categorical DQN atom size')
-    parser.add_argument('--n_step', type=int, default=5, help='N-step Learning step size') 
+    parser.add_argument('--n_step', type=int, default=5, help='N-step Learning step size')
 
     parser.add_argument('--pgd_iter', type=int, default=6, help='Action 0, number of PGD iterations')
     parser.add_argument('--dct_iter', type=int, default=4, help='Action 1~3, number of frequency noise insertion iterations')
@@ -160,7 +160,7 @@ if __name__ == '__main__':
     parser.add_argument('--deterministic_inv', type=int, default=1, help='Whether to use deterministic inversion during inference')
     parser.add_argument('--hybrid_noise', type=int, default=0, help='Whether to change multiple attributes by mixing multiple models')
     parser.add_argument('--model_ratio', type=float, default=1, help='Degree of change, noise ratio from original and finetuned model.')
-    # Loss & Optimization
+
     parser.add_argument('--clip_loss_w', type=int, default=3, help='Weights of CLIP loss')
     parser.add_argument('--l1_loss_w', type=float, default=0, help='Weights of L1 loss')
     parser.add_argument('--id_loss_w', type=float, default=0, help='Weights of ID loss')

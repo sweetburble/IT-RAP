@@ -25,7 +25,7 @@ class VisionDataset(data.Dataset):
             raise ValueError("Only transforms or transform/target_transform can "
                              "be passed as argument")
 
-        # for backwards-compatibility
+
         self.transform = transform
         self.target_transform = target_transform
 
@@ -91,7 +91,7 @@ class StandardTransform(object):
 
         return '\n'.join(body)
 
-################################################################
+
 
 class LSUNClass(VisionDataset):
     def __init__(self, root, transform=None, target_transform=None):
@@ -145,18 +145,6 @@ class LSUNClass(VisionDataset):
 
 
 class LSUN(VisionDataset):
-    """
-    `LSUN <https://www.yf.io/p/lsun>`_ dataset.
-
-    Args:
-        root (string): Root directory for the database files.
-        classes (string or list): One of {'train', 'val', 'test'} or a list of
-            categories to load. e,g. ['bedroom_train', 'church_outdoor_train'].
-        transform (callable, optional): A function/transform that  takes in an PIL image
-            and returns a transformed version. E.g, ``transforms.RandomCrop``
-        target_transform (callable, optional): A function/transform that takes in the
-            target and transforms it.
-    """
 
     def __init__(self, root, classes="train", transform=None, target_transform=None):
         super(LSUN, self).__init__(
@@ -164,7 +152,7 @@ class LSUN(VisionDataset):
         )
         self.classes = self._verify_classes(classes)
 
-        # for each class, create an LSUNClassDataset
+
         self.dbs = []
         for c in self.classes:
             self.dbs.append(
@@ -230,13 +218,6 @@ class LSUN(VisionDataset):
         return classes
 
     def __getitem__(self, index):
-        """
-        Args:
-            index (int): Index
-
-        Returns:
-            tuple: Tuple (image, target) where target is the index of the target category.
-        """
         target = 0
         sub = 0
         for ind in self.indices:
@@ -252,7 +233,7 @@ class LSUN(VisionDataset):
             target = self.target_transform(target)
 
         img, _ = db[index]
-        return img#, target
+        return img
 
     def __len__(self):
         return self.length
@@ -264,7 +245,7 @@ class LSUN(VisionDataset):
 
 
 
-################################################################
+
 
 def get_lsun_dataset(data_root, config):
 

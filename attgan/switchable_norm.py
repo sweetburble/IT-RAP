@@ -1,6 +1,5 @@
-# https://github.com/switchablenorms/Switchable-Normalization
 
-"""Switchable Normalization Implementation"""
+
 
 import torch
 import torch.nn as nn

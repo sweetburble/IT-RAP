@@ -1,43 +1,22 @@
-# Core ML framework (CPU-only build)
 torch==1.12.1+cpu
 torchvision==0.13.1+cpu
-torchaudio==0.12.1  # Optional, can be removed if not used
+torchaudio==0.12.1
 -f https://download.pytorch.org/whl/torch_stable.html
-
-# Array & math
 numpy==1.24.4
 scipy>=1.8.0
-
-# Data processing
 pandas>=1.5.3
-
-# Visualization
 matplotlib>=3.7.1
 seaborn>=0.12.2
-
-# Machine learning utilities
 scikit-learn>=1.2.2
 scikit-image>=0.19.3
 PyWavelets>=1.4.1
-
-# Deep learning metrics
 torchmetrics>=0.11.4
-lpips==0.1.4  # If you're using LPIPS externally as well
-
-# Computer Vision utilities
+lpips==0.1.4
 opencv-python>=4.7.0.72
 Pillow>=8.4.0
-
-# DCT (Discrete Cosine Transform)
 torch-dct>=0.1.6
-
-# Hyperparameter optimization
 optuna>=3.0.0
-
-# Hyperparameter logging
 neptune-client==1.14.0
-
-# Others (only if used explicitly)
 h5py>=3.9.0
 sympy==1.14.0
 face-alignment==1.4.1

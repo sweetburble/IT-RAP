@@ -10,18 +10,16 @@ def get_beta_schedule(*, beta_start, beta_end, num_diffusion_timesteps):
 
 
 def extract(a, t, x_shape):
-    """Extract coefficients from a based on t and reshape to make it
-    broadcastable with x_shape."""
     bs, = t.shape
     assert x_shape[0] == bs
 
     if torch.is_tensor(a):
-        # 이미 텐서라면: 디바이스와 타입만 t에 맞춤 (복사 경고 방지)
+
         a_tensor = a.to(device=t.device, dtype=torch.float)
     else:
-        # 넘파이 배열이라면: 텐서로 변환
+
         a_tensor = torch.tensor(a, device=t.device, dtype=torch.float)
-    
+
     out = torch.gather(a_tensor, 0, t.long())
 
     assert out.shape == (bs,)
@@ -42,7 +40,7 @@ def denoising_step(xt, t, t_next, *,
                    out_x0_t=False,
                    ):
 
-    # Compute noise and variance
+
     if type(models) != list:
         model = models
         et = model(xt, t)
@@ -90,7 +88,7 @@ def denoising_step(xt, t, t_next, *,
                         logvar += ratio * logvar_i
                     break
 
-    # Compute the next x
+
     bt = extract(b, t, xt.shape)
     at = extract((1.0 - b).cumprod(dim=0), t, xt.shape)
 
@@ -126,5 +124,3 @@ def denoising_step(xt, t, t_next, *,
         return xt_next, x0_t
     else:
         return xt_next
-
-

@@ -9,7 +9,7 @@ for i in range(1, num_runs + 1):
     with open(output_file, "w", encoding='utf-8') as f:
         process = subprocess.Popen(
             [
-                "python", "main.py",     # if using StarGAN, change to "stargan_main.py"
+                "python", "main.py",
                 "--edit_one_image",
                 "--config", "celeba.yml",
                 "--exp", "./runs/test_edit_one",
