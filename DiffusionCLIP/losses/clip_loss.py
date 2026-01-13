@@ -24,7 +24,7 @@ class DirectionLoss(torch.nn.Module):
     def forward(self, x, y):
         if self.loss_type == "cosine":
             return 1. - self.loss_func(x, y)
-        
+
         return self.loss_func(x, y)
 
 class CLIPLoss(torch.nn.Module):
@@ -35,10 +35,10 @@ class CLIPLoss(torch.nn.Module):
         self.model, clip_preprocess = clip.load(clip_model, device=self.device)
 
         self.clip_preprocess = clip_preprocess
-        
-        self.preprocess = transforms.Compose([transforms.Normalize(mean=[-1.0, -1.0, -1.0], std=[2.0, 2.0, 2.0])] + # Un-normalize from [-1.0, 1.0] (GAN output) to [0, 1].
-                                              clip_preprocess.transforms[:2] +                                      # to match CLIP input scale assumptions
-                                              clip_preprocess.transforms[4:])                                       # + skip convert PIL to tensor
+
+        self.preprocess = transforms.Compose([transforms.Normalize(mean=[-1.0, -1.0, -1.0], std=[2.0, 2.0, 2.0])] +
+                                              clip_preprocess.transforms[:2] +
+                                              clip_preprocess.transforms[4:])
 
         self.target_direction      = None
         self.patch_text_directions = None
@@ -58,9 +58,9 @@ class CLIPLoss(torch.nn.Module):
         self.angle_loss = torch.nn.L1Loss()
 
         self.model_cnn, preprocess_cnn = clip.load("RN50", device=self.device)
-        self.preprocess_cnn = transforms.Compose([transforms.Normalize(mean=[-1.0, -1.0, -1.0], std=[2.0, 2.0, 2.0])] + # Un-normalize from [-1.0, 1.0] (GAN output) to [0, 1].
-                                        preprocess_cnn.transforms[:2] +                                                 # to match CLIP input scale assumptions
-                                        preprocess_cnn.transforms[4:])                                                  # + skip convert PIL to tensor
+        self.preprocess_cnn = transforms.Compose([transforms.Normalize(mean=[-1.0, -1.0, -1.0], std=[2.0, 2.0, 2.0])] +
+                                        preprocess_cnn.transforms[:2] +
+                                        preprocess_cnn.transforms[4:])
 
         self.texture_loss = torch.nn.MSELoss()
 
@@ -77,7 +77,7 @@ class CLIPLoss(torch.nn.Module):
     def encode_images_with_cnn(self, images: torch.Tensor) -> torch.Tensor:
         images = self.preprocess_cnn(images).to(self.device)
         return self.model_cnn.encode_image(images)
-    
+
     def distance_with_templates(self, img: torch.Tensor, class_str: str, templates=imagenet_templates) -> torch.Tensor:
 
         text_features  = self.get_text_features(class_str, templates)
@@ -86,7 +86,7 @@ class CLIPLoss(torch.nn.Module):
         similarity = image_features @ text_features.T
 
         return 1. - similarity
-    
+
     def get_text_features(self, class_str: str, templates=imagenet_templates, norm: bool = True) -> torch.Tensor:
         template_text = self.compose_text_with_templates(class_str, templates)
 
@@ -101,7 +101,7 @@ class CLIPLoss(torch.nn.Module):
 
     def get_image_features(self, img: torch.Tensor, norm: bool = True) -> torch.Tensor:
         image_features = self.encode_images(img)
-        
+
         if norm:
             image_features /= image_features.clone().norm(dim=-1, keepdim=True)
 
@@ -125,12 +125,12 @@ class CLIPLoss(torch.nn.Module):
             target_encodings = []
             for target_img in target_images:
                 preprocessed = self.clip_preprocess(Image.open(target_img)).unsqueeze(0).to(self.device)
-                
+
                 encoding = self.model.encode_image(preprocessed)
                 encoding /= encoding.norm(dim=-1, keepdim=True)
 
                 target_encodings.append(encoding)
-            
+
             target_encoding = torch.cat(target_encodings, axis=0)
             target_encoding = target_encoding.mean(dim=0, keepdim=True)
 
@@ -166,7 +166,7 @@ class CLIPLoss(torch.nn.Module):
 
     def compose_text_with_templates(self, text: str, templates=imagenet_templates) -> list:
         return [template.format(text) for template in templates]
-            
+
     def clip_directional_loss(self, src_img: torch.Tensor, source_class: str, target_img: torch.Tensor, target_class: str) -> torch.Tensor:
 
         if self.target_direction is None:
@@ -182,7 +182,7 @@ class CLIPLoss(torch.nn.Module):
     def global_clip_loss(self, img: torch.Tensor, text) -> torch.Tensor:
         if not isinstance(text, list):
             text = [text]
-            
+
         tokens = clip.tokenize(text).to(self.device)
         image  = self.preprocess(img)
 
@@ -222,7 +222,7 @@ class CLIPLoss(torch.nn.Module):
 
     def patch_scores(self, img: torch.Tensor, class_str: str, patch_centers, patch_size: int) -> torch.Tensor:
 
-        parts = self.compose_text_with_templates(class_str, part_templates)    
+        parts = self.compose_text_with_templates(class_str, part_templates)
         tokens = clip.tokenize(parts).to(self.device)
         text_features = self.encode_text(tokens).detach()
 
@@ -234,10 +234,10 @@ class CLIPLoss(torch.nn.Module):
         return similarity
 
     def clip_patch_similarity(self, src_img: torch.Tensor, source_class: str, target_img: torch.Tensor, target_class: str) -> torch.Tensor:
-        patch_size = 196 #TODO remove magic number
+        patch_size = 196
 
-        patch_centers = self.random_patch_centers(src_img.shape, 4, patch_size) #TODO remove magic number
-   
+        patch_centers = self.random_patch_centers(src_img.shape, 4, patch_size)
+
         src_scores    = self.patch_scores(src_img, source_class, patch_centers, patch_size)
         target_scores = self.patch_scores(target_img, target_class, patch_centers, patch_size)
 
@@ -253,7 +253,7 @@ class CLIPLoss(torch.nn.Module):
 
             self.patch_text_directions = torch.cat([self.compute_text_direction(pair[0], pair[1]) for pair in parts_classes], dim=0)
 
-        patch_size = 510 # TODO remove magic numbers
+        patch_size = 510
 
         patch_centers = self.random_patch_centers(src_img.shape, 1, patch_size)
 

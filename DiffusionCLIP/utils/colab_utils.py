@@ -31,6 +31,3 @@ class GoogleDrive_Dowonloader(object):
             drive_download(f'https://drive.google.com/uc?id={file_id}', file_dst, quiet=False)
       else:
         print(f'{file_dst} exists.')
-
-
-

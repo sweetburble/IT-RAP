@@ -44,7 +44,7 @@ class MobileFaceNet(Module):
 
 
 
-######################################################################################
+
 
 class Backbone(Module):
 	def __init__(self, input_size, num_layers, mode='ir', drop_ratio=0.4, affine=True):
@@ -58,8 +58,8 @@ class Backbone(Module):
 		elif mode == 'ir_se':
 			unit_module = bottleneck_IR_SE
 		self.input_layer = Sequential(Conv2d(3, 64, (3, 3), 1, 1, bias=False),
-									  BatchNorm2d(64),
-									  PReLU(64))
+		         BatchNorm2d(64),
+		         PReLU(64))
 		if input_size == 112:
 			self.output_layer = Sequential(BatchNorm2d(512),
 			                               Dropout(drop_ratio),
@@ -77,8 +77,8 @@ class Backbone(Module):
 		for block in blocks:
 			for bottleneck in block:
 				modules.append(unit_module(bottleneck.in_channel,
-										   bottleneck.depth,
-										   bottleneck.stride))
+				         bottleneck.depth,
+				         bottleneck.stride))
 		self.body = Sequential(*modules)
 
 	def forward(self, x):
@@ -89,36 +89,30 @@ class Backbone(Module):
 
 
 def IR_50(input_size):
-	"""Constructs a ir-50 model."""
 	model = Backbone(input_size, num_layers=50, mode='ir', drop_ratio=0.4, affine=False)
 	return model
 
 
 def IR_101(input_size):
-	"""Constructs a ir-101 model."""
 	model = Backbone(input_size, num_layers=100, mode='ir', drop_ratio=0.4, affine=False)
 	return model
 
 
 def IR_152(input_size):
-	"""Constructs a ir-152 model."""
 	model = Backbone(input_size, num_layers=152, mode='ir', drop_ratio=0.4, affine=False)
 	return model
 
 
 def IR_SE_50(input_size):
-	"""Constructs a ir_se-50 model."""
 	model = Backbone(input_size, num_layers=50, mode='ir_se', drop_ratio=0.4, affine=False)
 	return model
 
 
 def IR_SE_101(input_size):
-	"""Constructs a ir_se-101 model."""
 	model = Backbone(input_size, num_layers=100, mode='ir_se', drop_ratio=0.4, affine=False)
 	return model
 
 
 def IR_SE_152(input_size):
-	"""Constructs a ir_se-152 model."""
 	model = Backbone(input_size, num_layers=152, mode='ir_se', drop_ratio=0.4, affine=False)
 	return model

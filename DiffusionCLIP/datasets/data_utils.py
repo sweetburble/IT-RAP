@@ -40,5 +40,3 @@ def get_dataloader(train_dataset, test_dataset, bs_train=1, num_workers=0):
     )
 
     return {'train': train_loader, 'test': test_loader}
-
-

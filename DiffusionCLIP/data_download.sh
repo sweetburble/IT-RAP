@@ -1,7 +1,3 @@
-"""
-Modified version of download.sh in https://github.com/naver-ai/StyleMapGAN
-"""
-
 DATASET=$1
 BASE_DIR=$2
 
@@ -25,7 +21,6 @@ BASE_DIR=$2
     unzip $ZIP_FILE -d $DATASET_FOLDER
     rm $ZIP_FILE
 
-    # raw images to LMDB format
     TARGET_SIZE=256,1024
     for DATASET_TYPE in "train" "test" "val"; do
         python utils/prepare_lmdb_data.py --out $DATASET_FOLDER/LMDB_$DATASET_TYPE --size $TARGET_SIZE $DATASET_FOLDER/raw_images/$DATASET_TYPE

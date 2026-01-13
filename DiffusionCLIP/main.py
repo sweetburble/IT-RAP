@@ -13,12 +13,12 @@ from DiffusionCLIP.configs.paths_config import HYBRID_MODEL_PATHS
 def parse_args_and_config():
     parser = argparse.ArgumentParser(description=globals()['__doc__'])
 
-    # Mode
+
     parser.add_argument('--edit_images_from_dataset', action='store_true')
     parser.add_argument('--edit_one_image', action='store_true')
     parser.add_argument('--unseen2unseen', action='store_true')
 
-    # Default
+
     parser.add_argument('--config', type=str, required=True, help='Path to the config file')
     parser.add_argument('--seed', type=int, default=1234, help='Random seed')
     parser.add_argument('--exp', type=str, default='./runs/', help='Path for saving running related data.')
@@ -27,13 +27,13 @@ def parse_args_and_config():
     parser.add_argument('--ni', type=int, default=1,  help="No interaction. Suitable for Slurm Job launcher")
     parser.add_argument('--align_face', type=int, default=1, help='align face or not')
 
-    # Text
+
     parser.add_argument('--edit_attr', type=str, default=None, help='Attribute to edit defiend in ./utils/text_dic.py')
     parser.add_argument('--src_txts', type=str, action='append', help='Source text e.g. Face')
     parser.add_argument('--trg_txts', type=str, action='append', help='Target text e.g. Angry Face')
     parser.add_argument('--target_class_num', type=str, default=None)
 
-    # Sampling
+
     parser.add_argument('--t_0', type=int, default=400, help='Return step in [0, 1000)')
     parser.add_argument('--n_inv_step', type=int, default=40, help='# of steps during generative pross for inversion')
     parser.add_argument('--n_train_step', type=int, default=6, help='# of steps during generative pross for train')
@@ -41,7 +41,7 @@ def parse_args_and_config():
     parser.add_argument('--sample_type', type=str, default='ddim', help='ddpm for Markovian sampling, ddim for non-Markovian sampling')
     parser.add_argument('--eta', type=float, default=0.0, help='Controls of varaince of the generative process')
 
-    # Train & Test
+
     parser.add_argument('--do_train', type=int, default=1, help='Whether to train or not during CLIP finetuning')
     parser.add_argument('--do_test', type=int, default=1, help='Whether to test or not during CLIP finetuning')
     parser.add_argument('--save_train_image', type=int, default=1, help='Wheter to save training results during CLIP fineuning')
@@ -57,7 +57,7 @@ def parse_args_and_config():
     parser.add_argument('--model_ratio', type=float, default=1, help='Degree of change, noise ratio from original and finetuned model.')
 
 
-    # Loss & Optimization
+
     parser.add_argument('--clip_loss_w', type=int, default=3, help='Weights of CLIP loss')
     parser.add_argument('--l1_loss_w', type=float, default=0, help='Weights of L1 loss')
     parser.add_argument('--id_loss_w', type=float, default=0, help='Weights of ID loss')
@@ -68,7 +68,7 @@ def parse_args_and_config():
 
     args = parser.parse_args()
 
-    # parse config file
+
     with open(os.path.join('configs', args.config), 'r') as f:
         config = yaml.safe_load(f)
     new_config = dict2namespace(config)
@@ -147,18 +147,18 @@ def parse_args_and_config():
                 overwrite = True
 
         if overwrite:
-            # shutil.rmtree(args.image_folder)
+
             os.makedirs(args.image_folder, exist_ok=True)
         else:
             print("Output image folder exists. Program halted.")
             sys.exit(0)
 
-    # add device
+
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
     logging.info("Using device: {}".format(device))
     new_config.device = device
 
-    # set random seed
+
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
     if torch.cuda.is_available():

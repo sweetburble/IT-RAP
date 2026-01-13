@@ -24,13 +24,6 @@ def dict2namespace(config):
 
 
 class DiffusionCLIPWrapper:
-    """Wrapper to run DiffusionCLIP base + finetuned(attribute) diffusion.
-
-    Base diffusion is always required. For CelebA_HQ it is auto-downloaded as `celeba_hq.ckpt`
-    if missing. Finetuned attribute checkpoints (e.g., human_male_t401.pth) are loaded into
-    `ft_model`, and sampling mixes predictions with `ratio`.
-    """
-
     def __init__(self, device, checkpoints_dict, root_path='./DiffusionCLIP'):
         self.device = device
         self.checkpoints_dict = checkpoints_dict
@@ -38,14 +31,12 @@ class DiffusionCLIPWrapper:
 
         self.current_attr = None
 
-        # Args-like container
         self.args = argparse.Namespace()
         self.args.sample_type = 'ddim'
         self.args.eta = 0.0
         self.args.model_ratio = 1.0
         self.args.hybrid_noise = 0
 
-        # Load config
         config_path = os.path.join(self.root_path, 'configs', 'celeba.yml')
         if not os.path.exists(config_path):
             raise FileNotFoundError(f"Config file not found at: {config_path}")
@@ -54,16 +45,13 @@ class DiffusionCLIPWrapper:
         self.config = dict2namespace(config_dict)
         self.config.device = self.device
 
-        # Diffusion params
         self._init_diffusion_params()
 
-        # Base
         self.base_model = self._build_model()
         self._load_pretrained_weights(self.base_model)
         self.base_model.eval()
         self.base_model.requires_grad_(False)
 
-        # Finetuned
         self.ft_model = self._build_model()
         self._load_pretrained_weights(self.ft_model)
         self.ft_model.eval()
@@ -72,10 +60,8 @@ class DiffusionCLIPWrapper:
         if 'male' in self.checkpoints_dict:
             self.load_attr_weights('male')
 
-        # Backward-compatible alias
         self.model = self.ft_model
 
-        # Precompute coefficients (for predict_x0)
         alphas_cumprod = np.cumprod(self.alphas, axis=0)
         self.sqrt_alphas_cumprod = torch.tensor(np.sqrt(alphas_cumprod)).to(self.device).float()
         self.sqrt_one_minus_alphas_cumprod = torch.tensor(np.sqrt(1.0 - alphas_cumprod)).to(self.device).float()

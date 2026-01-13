@@ -1,6 +1,6 @@
-# prepare the weights and face-alignment
-# wget http://dlib.net/files/shape_predictor_68_face_landmarks.dat.bz2
-# bunzip2 shape_predictor_68_face_landmarks.dat.bz2
+
+
+
 
 import os
 import torch
@@ -69,8 +69,8 @@ class Predictor(BasePredictor):
                 "Dog face manipulation",
             ],
             description="Choose a manipulation type."
-            #           " Human face manipulation expects aligned image, pre-process with
-            #"https://replicate.com/cjwbw/face-align-cog for images that are not aligned.",
+
+
         ),
         edit_type: str = Input(
             default="ImageNet Style Transfer - Watercolor art",
@@ -108,7 +108,7 @@ class Predictor(BasePredictor):
             le=100,
         ),
     ) -> Path:
-        # sanity check
+
         assert edit_type.startswith(
             manipulation
         ), f"Please choose the available edit types for {manipulation}."
@@ -121,7 +121,7 @@ class Predictor(BasePredictor):
         exp_dir = "temp_dir"
         os.makedirs(exp_dir, exist_ok=True)
 
-        # Test arg, config
+
         align_face = 1 if manipulation == "Human face manipulation" else 0
         n_inv_step = 40
         args_dic = {
@@ -151,7 +151,7 @@ class Predictor(BasePredictor):
         config = dict2namespace(config_dic)
         config.device = "cuda:0"
 
-        # Edit
+
         runner = DiffusionCLIP(args, config)
         runner.edit_one_image()
 

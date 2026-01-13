@@ -1,35 +1,16 @@
-# Core ML framework (GPU build)
 torch==2.2.2+cu121
 torchvision==0.17.2+cu121
-
-# Array & math
 numpy==1.26.4
 scipy>=1.15.1
-
-# Data processing
 pandas>=2.2.3
-
-# Visualization
 matplotlib>=3.10.1
 seaborn>=0.13.2
-
-# Machine learning utilities
 scikit-learn>=1.6.1
 scikit-image>=0.25.0
 PyWavelets>=1.8.0
-
-# Deep learning metrics
 torchmetrics>=1.6.3
-
-# Computer Vision utilities
 opencv-python>=4.11.0.86
 Pillow>=10.2.0
-
-# DCT (Discrete Cosine Transform)
 torch-dct>=0.1.6
-
-# Hyperparameter optimization
 optuna>=4.2.1
-
-# Others (only if used explicitly)
 h5py>=3.13.0

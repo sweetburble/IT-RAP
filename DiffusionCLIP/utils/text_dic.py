@@ -1,5 +1,5 @@
 SRC_TRG_TXT_DIC = {
-    # Human face
+
     'tanned': (['face'],
                ['tanned face']),
     'pale': (['face'],
@@ -59,7 +59,7 @@ SRC_TRG_TXT_DIC = {
                ['The Jocker']),
 
 
-    # Dog face
+
     'dog_nicolas': (['Dog'],
                     ['Nicolas Cage']),
     'dog_yorkshire': (['Dog'],
@@ -82,7 +82,7 @@ SRC_TRG_TXT_DIC = {
                     ['Hamster']),
 
 
-    # Church
+
     'church_snow': (['Church'],
                     ['Snow Coverd Church']),
     'church_night': (['Church'],
@@ -105,7 +105,7 @@ SRC_TRG_TXT_DIC = {
                                 ['department store']),
 
 
-    # Bedroom
+
     'bedroom_blue': (['Bedroom'],
                      ['Blue tone Bedroom']),
     'bedroom_green': (['Bedroom'],
