@@ -1,6 +1,8 @@
 import neptune
 import os
 import argparse
+from dotenv import load_dotenv
+from sympy import im
 from torch.backends import cudnn
 
 from diffusionclip_solver import SolverRainbow
@@ -13,13 +15,15 @@ def str2bool(v):
     return v.lower() in ('true')
 
 def main(config):
+    # .env 파일 활성화
+    load_dotenv()
+
     # For fast training
     cudnn.benchmark = True
     
-    # neptune logging
     run = neptune.init_run(
-        project="seollab/seollab",
-        api_token="eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vYXBwLm5lcHR1bmUuYWkiLCJhcGlfdXJsIjoiaHR0cHM6Ly9hcHAubmVwdHVuZS5haSIsImFwaV9rZXkiOiI3NGYwMGE5Yi1jZTY2LTRlNjMtYmNhOS0wMDk3MzU2ZjNjYjcifQ==", # Replace with your Neptune.ai API token        
+        project=os.getenv("NEPTUNE_PROJECT"),
+        api_token=os.getenv("NEPTUNE_API_TOKEN"),
     )
 
 

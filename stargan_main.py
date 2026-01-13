@@ -1,6 +1,7 @@
 import neptune
 import os
 import argparse
+from dotenv import load_dotenv
 from torch.backends import cudnn
 from stargan_solver import SolverRainbow
 from stargan_data_loader import get_loader
@@ -9,18 +10,18 @@ os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
 os.environ['TORCH_USE_CUDA_DSA'] = '1'
 
 
-
-
-
 def str2bool(v):
     return v.lower() in ('true')
 
 def main(config):
+    # .env 파일 활성화
+    load_dotenv()
+
     # For fast training
     cudnn.benchmark = True
     run = neptune.init_run(
-        project="your_project/your_project_subname",
-        api_token="xxx",
+        project=os.getenv("NEPTUNE_PROJECT"),
+        api_token=os.getenv("NEPTUNE_API_TOKEN"),
     )
 
     

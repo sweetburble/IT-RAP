@@ -3,6 +3,7 @@ import neptune
 import os
 import argparse
 from attgan_solver import SolverRainbow
+from dotenv import load_dotenv
 
 from attgan_data_loader import get_loader
 from torch.backends import cudnn
@@ -14,11 +15,14 @@ def str2bool(v):
     return v.lower() in ('true')
 
 def main(config):
+    # .env 파일 활성화
+    load_dotenv()
+
     # For fast training
     cudnn.benchmark = True
     run = neptune.init_run(
-        project="your_project/your_project_subname",
-        api_token="xxx",
+        project=os.getenv("NEPTUNE_PROJECT"),
+        api_token=os.getenv("NEPTUNE_API_TOKEN"),
     )
     # Create directories if not exist
     if not os.path.exists(config.log_dir):

@@ -12,7 +12,6 @@ Our comprehensive experiments demonstrate that IT-RAP successfully disrupts deep
   <img src="https://github.com/user-attachments/assets/9a0e9cda-f8f4-4470-b08c-a91219d901fc" width="60.8%">
 </p>
 
-
 ## Setup
 
 ### Install uv
@@ -69,8 +68,11 @@ uv add seaborn
 uv add h5py
 uv add PyWavelets
 uv add neptune
+uv add lmdb
+uv add dlib
+uv install git+https://github.com/openai/CLIP.git
+uv add python-dotenv
 ```
-
 
 ## Datasets and Models
 
@@ -91,17 +93,18 @@ Follow instruction in the [MAAD-Face official repository](https://github.com/pte
 
 **AttGAN Model**
 Follow instruction in the [AttGAN official repository](https://github.com/elvisyjlin/AttGAN-PyTorch) for downloading their model.
-- AttGAN Pretrained Checkpoint (256_shortcut1_inject1_none_hq) This repository uses a pretrained AttGAN checkpoint named **`256_shortcut1_inject1_none_hq`**. You can download the required weights from the Google Drive folder linked below and place the checkpoint file in your project's checkpoint directory before running training or inference.
-- Download Link   
-[Google Drive folder containing the checkpoint(s)](https://drive.google.com/drive/folders/1JMQ-gtI4rmdkmnPSIHw0cMGRBRa2Hw1z?usp=sharing)
+
+-   AttGAN Pretrained Checkpoint (256_shortcut1_inject1_none_hq) This repository uses a pretrained AttGAN checkpoint named **`256_shortcut1_inject1_none_hq`**. You can download the required weights from the Google Drive folder linked below and place the checkpoint file in your project's checkpoint directory before running training or inference.
+-   Download Link
+    [Google Drive folder containing the checkpoint(s)](https://drive.google.com/drive/folders/1JMQ-gtI4rmdkmnPSIHw0cMGRBRa2Hw1z?usp=sharing)
 
 **DiffusionCLIP Model**
 
 The checkpoint files required to run the code can be downloaded from the link below.
 Please place the downloaded files in the following directory: `./DiffusionCLIP/checkpoint/`
-- Download Link   
-[Google Drive folder containing the checkpoint(s)](https://drive.google.com/drive/folders/1QhsWtqK5ZTjk58Bp9EcP_FFPbLQDLNk5?usp=sharing)
 
+-   Download Link
+    [Google Drive folder containing the checkpoint(s)](https://drive.google.com/drive/folders/1QhsWtqK5ZTjk58Bp9EcP_FFPbLQDLNk5?usp=sharing)
 
 ## Attack Training
 
@@ -114,9 +117,8 @@ To run the script, use the following command in your terminal:
 ```bash
 python "initialize_dqn.py"
 ```
+
 Once executed, an initialized `.pth` checkpoint file for the model will be created in the `./checkpoints/models/` directory.
-
-
 
 ### **Training Models on Your Local Machine**
 
@@ -133,6 +135,7 @@ To execute with the **MAADFace** dataset, simply run the following command in yo
 ```bash
 python "[MAADFace] train_entry_point.py"
 ```
+
 If you want to run it for AttGAN instead of StarGAN, simply replace the `"python \"stargan_main.py\""` part with `"python \"attgan_main.py\""` in the train_entry_point.py file for each dataset.
 Below are detailed instructions for the four possible training combinations.
 
@@ -151,7 +154,7 @@ This method trains the **StarGAN** model using the CelebA dataset. Run `[CelebA]
 os.system(
     "python \"stargan_main.py\" "         # 'stargan_main.py'
     "--mode train "
-    "--dataset CelebA "     
+    "--dataset CelebA "
     "--training_image_num 100 "
     "--image_size 256 "
     "--c_dim 5 "
@@ -178,7 +181,7 @@ This method trains the **AttGAN** model using the CelebA dataset. Run `[CelebA] 
 os.system(
     "python \"attgan_main.py\" "         # 'attgan_main.py'
     "--mode train "
-    "--dataset CelebA "     
+    "--dataset CelebA "
     "--training_image_num 100 "
     "--image_size 256 "
     "--c_dim 5 "
@@ -203,7 +206,7 @@ This method trains the **StarGAN** model using the MAAD-Face dataset. Run `[MAAD
 ```python
 os.system(
     "python \"stargan_main.py\" "       # 'stargan_main.py'
-    "--mode train " 
+    "--mode train "
     "--dataset MAADFace "
     "--training_image_num 200 "
     "--image_size 256 "
@@ -215,7 +218,7 @@ os.system(
     "--result_dir=result_test "
     "--test_iters 200000 "
     "--batch_size 1 "
-    "--start_index 900" 
+    "--start_index 900"
 )
 ```
 
@@ -232,7 +235,7 @@ This method trains the **StarGAN** model using the MAAD-Face dataset. Run `[MAAD
 ```python
 os.system(
     "python \"attgan_main.py\" "       # 'attgan_main.py'
-    "--mode train " 
+    "--mode train "
     "--dataset MAADFace "
     "--training_image_num 200 "
     "--image_size 256 "
@@ -244,7 +247,7 @@ os.system(
     "--result_dir=result_test "
     "--test_iters 200000 "
     "--batch_size 1 "
-    "--start_index 900" 
+    "--start_index 900"
 )
 ```
 
@@ -268,9 +271,8 @@ To run inference with the **MAADFace** dataset, enter the following command in y
 ```bash
 python "[MAADFace] infer_entry_point.py"
 ```
+
 If you want to run it for AttGAN instead of StarGAN, simply replace the `"python", "stargan_main.py"` part with `"python", "attgan_main.py"` in the train_entry_point.py file for each dataset.
-
-
 
 **Prerequisites:**
 
@@ -282,7 +284,7 @@ Before proceeding with inference, you need the pre-trained weight file for the R
 
 ### **Detailed Inference Instructions**
 
-You can run four different combinations of inference by modifying the settings within the `[CelebA] infer_entry_point.py` and `[MAADFace] infer_entry_point.py` files.   
+You can run four different combinations of inference by modifying the settings within the `[CelebA] infer_entry_point.py` and `[MAADFace] infer_entry_point.py` files.
 
 <br>
 

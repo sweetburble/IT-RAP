@@ -32,3 +32,4 @@ uv.lock
 .neptune
 stargan_celeba_256
 DiffusionCLIP/checkpoint
+.env

@@ -1339,6 +1339,12 @@ class SolverRainbow(object):
         #     combined_features = torch.cat([meso4_features_perturbed, meso4_features_perturbed_gen, meso4_inception_features_perturbed, meso4_inception_features_perturbed_gen], dim=1)
 
         #     return combined_features
+
+
+        # [시간 측정 시작] GPU 동기화 및 타이머 시작
+        if torch.cuda.is_available():
+            torch.cuda.synchronize()
+        start_time = time.perf_counter()
         
         # Check if we should extract features based on frequency
         should_extract = force_extract or (self.step_counter % self.feature_extractor_frequency == 0)
@@ -1371,6 +1377,17 @@ class SolverRainbow(object):
         combined_features = torch.cat([perturbed_features, perturbed_gen_features], dim=1)
         # Cache the extracted features
         self.cached_state = combined_features
+
+        # [시간 측정 종료] GPU 동기화 및 타이머 종료
+        if torch.cuda.is_available():
+            torch.cuda.synchronize()
+        end_time = time.perf_counter()
+        
+        # 실행 시간 출력 (밀리초 단위)
+        elapsed_time = (end_time - start_time) * 1000
+        print(f"[Time Log] get_state (Computed): {elapsed_time:.4f} ms")
+
+        
         return combined_features, False  # Return (state, is_cached=False)
 
 
