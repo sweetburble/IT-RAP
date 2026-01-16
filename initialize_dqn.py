@@ -3,7 +3,6 @@ from torch.optim import Adam
 from stargan_solver import RainbowDQNNet
 
 
-
 state_dim = 1024
 action_dim = 4
 atom_size = 11

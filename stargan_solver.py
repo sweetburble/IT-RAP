@@ -31,20 +31,6 @@ from segment_tree import MinSegmentTree, SumSegmentTree
 from meso_net import Meso4, MesoInception4, convert_tf_weights_to_pytorch
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 np.random.seed(0)
 
 """Noisy Layer"""
@@ -336,7 +322,6 @@ class SolverRainbow(object):
         self.build_rlab_agent()
 
 
-
     def inference_rainbow_dqn(self, data_loader, result_dir):
         os.makedirs(result_dir, exist_ok=True)
         self.attack_func = stargan_attacks.AttackFunction(config=self.config, model=self.G, device=self.device)
@@ -406,7 +391,6 @@ class SolverRainbow(object):
             image_feature_cache_hits = 0
 
             x_real = x_real.to(self.device)
-
 
 
             noattack_result_list = [x_real]
@@ -522,7 +506,6 @@ class SolverRainbow(object):
                     results = calculate_and_save_metrics(original_gen_image, perturbed_gen_image_orig, "원본(변형없음)", results)
 
 
-
                 x_adv_jpeg = compress_jpeg(perturbed_image, quality=75)
                 with torch.no_grad():
                     remain_perturb_array = analyze_perturbation(x_adv_jpeg - x_real)
@@ -532,7 +515,6 @@ class SolverRainbow(object):
                     jpeg_result_list.append(original_gen_image)
                     jpeg_result_list.append(perturbed_gen_image_jpeg)
                     results = calculate_and_save_metrics(original_gen_image, perturbed_gen_image_jpeg, "JPEG압축", results)
-
 
 
                 x_adv_denoise_opencv = denoise_opencv(perturbed_image)
@@ -546,7 +528,6 @@ class SolverRainbow(object):
                     results = calculate_and_save_metrics(original_gen_image, perturbed_gen_image_opencv, "OpenCV디노이즈", results)
 
 
-
                 x_adv_median = denoise_scikit(perturbed_image)
                 with torch.no_grad():
                     remain_perturb_array = analyze_perturbation(x_adv_median - x_real)
@@ -556,7 +537,6 @@ class SolverRainbow(object):
                     median_result_list.append(original_gen_image)
                     median_result_list.append(perturbed_gen_image_median)
                     results = calculate_and_save_metrics(original_gen_image, perturbed_gen_image_median, "중간값스무딩", results)
-
 
 
                 x_real_padding, x_adv_padding = random_resize_padding(x_real, perturbed_image)
@@ -569,7 +549,6 @@ class SolverRainbow(object):
                     padding_result_list.append(original_gen_image_padding)
                     padding_result_list.append(perturbed_gen_image_padding)
                     results = calculate_and_save_metrics(original_gen_image_padding, perturbed_gen_image_padding, "크기조정패딩", results)
-
 
 
                 x_real_transforms, x_adv_transforms = random_image_transforms(x_real, perturbed_image)
@@ -590,8 +569,8 @@ class SolverRainbow(object):
                     perturbed_image_np = perturbed_image.squeeze(0).permute(1, 2, 0).cpu().numpy()
 
                     invisible_lpips_value = self.lpips_loss(x_real, perturbed_image).mean()
-                    invisible_psnr_value = psnr(x_real_np, perturbed_image_np, data_range=1.0)
-                    invisible_ssim_value = ssim(x_real_np, perturbed_image_np, data_range=1.0, win_size=3, channel_axis=2)
+                    invisible_psnr_value = psnr(x_real_np, perturbed_image_np, data_range=2.0)
+                    invisible_ssim_value = ssim(x_real_np, perturbed_image_np, data_range=2.0, win_size=3, channel_axis=2)
 
                     total_invisible_lpips += invisible_lpips_value
                     total_invisible_psnr += invisible_psnr_value
@@ -600,11 +579,9 @@ class SolverRainbow(object):
                     episode += 1
 
 
-
                 resize_values = [224, 240, 208]
                 selected_resize = np.random.choice(resize_values)
                 print(f"Resize selected in this step: {selected_resize}")
-
 
 
             all_result_lists = [noattack_result_list, jpeg_result_list, opencv_result_list, median_result_list, padding_result_list, transforms_result_list]
@@ -612,7 +589,6 @@ class SolverRainbow(object):
             for result_list in all_result_lists:
                 row_concat = torch.cat(result_list, dim=3)
                 row_images.append(row_concat)
-
 
 
             spacing = 10
@@ -732,7 +708,6 @@ class SolverRainbow(object):
         self.rl_agent.dqn.load_state_dict(checkpoint['rainbow_dqn_state_dict'])
         self.rl_agent.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         print(f"[INFO] Rainbow DQN model loaded successfully: {checkpoint_path}")
-
 
 
     def build_model(self):
@@ -875,7 +850,6 @@ class SolverRainbow(object):
     def calculate_reward(self, original_gen_image, perturbed_gen_image, x_real, perturbed_image, c_trg):
 
 
-
         transformed_x_real, transformed_perturbed_image = apply_random_transform(x_real, perturbed_image)
         transformed_original, _ = self.G(transformed_x_real, c_trg)
         transformed_perturbed, _ = self.G(transformed_perturbed_image, c_trg)
@@ -889,16 +863,15 @@ class SolverRainbow(object):
         reward_defense = ((defense_l1_loss / 10) + (defense_l2_loss / 5) + defense_lpips) * 5
 
 
-
         x_real_np = x_real.squeeze().cpu().numpy()
         perturbed_image_np = perturbed_image.squeeze().cpu().numpy()
 
         if np.array_equal(x_real_np, perturbed_image_np):
             invisibility_psnr = 100.0
         else:
-            invisibility_psnr = psnr(x_real.squeeze().cpu().numpy(), perturbed_image.squeeze().cpu().numpy(), data_range=1.0)
+            invisibility_psnr = psnr(x_real.squeeze().cpu().numpy(), perturbed_image.squeeze().cpu().numpy(), data_range=2.0)
 
-        invisibility_ssim = ssim(x_real.squeeze().cpu().numpy(), perturbed_image.squeeze().cpu().numpy(), data_range=1.0, win_size=3, channel_axis=0, multichannel=True)
+        invisibility_ssim = ssim(x_real.squeeze().cpu().numpy(), perturbed_image.squeeze().cpu().numpy(), data_range=2.0, win_size=3, channel_axis=0)
 
         invisibility_lpips = self.lpips_loss(perturbed_image, x_real).mean()
 
@@ -911,8 +884,6 @@ class SolverRainbow(object):
         total_reward = w_defense * reward_defense + w_invisibility * reward_invisibility
 
         return total_reward, defense_l1_loss, defense_l2_loss, defense_lpips, invisibility_ssim, invisibility_psnr, invisibility_lpips
-
-
 
 
     """
@@ -963,7 +934,7 @@ class SolverRainbow(object):
         if torch.cuda.is_available():
             torch.cuda.synchronize()
         start_time = time.perf_counter()
-        
+
         # Check if we should extract features based on frequency
         should_extract = force_extract or (self.step_counter % self.feature_extractor_frequency == 0)
 
@@ -1000,15 +971,13 @@ class SolverRainbow(object):
         if torch.cuda.is_available():
             torch.cuda.synchronize()
         end_time = time.perf_counter()
-        
+
         # 실행 시간 출력 (밀리초 단위)
         elapsed_time = (end_time - start_time) * 1000
         print(f"[Time Log] get_state (Computed): {elapsed_time:.4f} ms")
 
-        
+
         return combined_features, False  # Return (state, is_cached=False)
-
-
 
 
     """Performs the RLAB attack (Rainbow DQN Agent)"""
@@ -1023,7 +992,6 @@ class SolverRainbow(object):
 
         checkpoint_path = os.path.join(self.model_save_dir, f'final_rainbow_dqn.pth')
         self.load_rainbow_dqn_checkpoint(checkpoint_path)
-
 
 
         self.restore_model(self.test_iters)
@@ -1090,11 +1058,6 @@ class SolverRainbow(object):
                 perturbed_image = x_real.clone().detach_() + torch.tensor(np.random.uniform(-self.noise_level, self.noise_level, x_real.shape).astype('float32')).to(self.device)
 
 
-
-
-
-
-
                 with torch.no_grad():
                     original_gen_image, _ = self.G(x_real, c_trg)
                     perturbed_gen_image, _ = self.G(perturbed_image, c_trg)
@@ -1119,7 +1082,6 @@ class SolverRainbow(object):
                     step_indices.append(step)
 
 
-
                     if action == 0:
 
                         perturbed_image, _ = attack_func.PGD(perturbed_image, original_gen_image, c_trg)
@@ -1140,16 +1102,8 @@ class SolverRainbow(object):
                         raise ValueError("Invalid action index")
 
 
-
-
-
-
-
-
-
                     with torch.no_grad():
                         perturbed_gen_image, _ = self.G(perturbed_image, c_trg)
-
 
 
                     reward, defense_l1_loss, defense_l2_loss, defense_lpips, invisibility_ssim, invisibility_psnr, invisibility_lpips = self.calculate_reward(original_gen_image, perturbed_gen_image, x_real, perturbed_image, c_trg)
@@ -1164,7 +1118,6 @@ class SolverRainbow(object):
                         self.run["train/SSIM"].append(float(invisibility_ssim))
 
 
-
                     if isinstance(reward, torch.Tensor):
                         total_reward_this_episode += reward.item()
                     else:
@@ -1173,14 +1126,7 @@ class SolverRainbow(object):
                     reward_tensor = torch.tensor([reward], dtype=torch.float32).to(self.device)
 
 
-
-
-
-
-
                     next_state, _ = self.get_state(perturbed_image, perturbed_gen_image)
-
-
 
 
                     n_step_buffer_test_attack.append((state, action, reward_tensor, next_state, torch.tensor([False])))
@@ -1201,9 +1147,6 @@ class SolverRainbow(object):
                     self.rl_agent.reset_noise()
 
                 reward_per_episode.append(total_reward_this_episode)
-
-
-
 
 
                 analyzed_perturbation_array = analyze_perturbation(perturbed_image - x_real)
@@ -1298,8 +1241,8 @@ class SolverRainbow(object):
                     perturbed_image_np = perturbed_image.squeeze(0).permute(1, 2, 0).cpu().numpy()
 
                     invisible_lpips_value = self.lpips_loss(x_real, perturbed_image).mean()
-                    invisible_psnr_value = psnr(x_real_np, perturbed_image_np, data_range=1.0)
-                    invisible_ssim_value = ssim(x_real_np, perturbed_image_np, data_range=1.0, win_size=3, channel_axis=2)
+                    invisible_psnr_value = psnr(x_real_np, perturbed_image_np, data_range=2.0)
+                    invisible_ssim_value = ssim(x_real_np, perturbed_image_np, data_range=2.0, win_size=3, channel_axis=2)
 
                     total_invisible_lpips += invisible_lpips_value
                     total_invisible_psnr += invisible_psnr_value
@@ -1308,12 +1251,10 @@ class SolverRainbow(object):
                     episode += 1
 
 
-
                 if episode % self.target_update_interval == 0:
 
                     self.rl_agent.update_target_net()
                     self.rl_agent.reset_noise()
-
 
 
             all_result_lists = [noattack_result_list, jpeg_result_list, opencv_result_list, median_result_list, padding_result_list, transforms_result_list]
@@ -1321,10 +1262,6 @@ class SolverRainbow(object):
             for result_list in all_result_lists:
                 row_concat = torch.cat(result_list, dim=3)
                 row_images.append(row_concat)
-
-
-
-
 
 
             spacing = 10
@@ -1341,7 +1278,6 @@ class SolverRainbow(object):
             x_concat = torch.cat(vertical_concat_list, dim=2)
             result_path = os.path.join(self.result_dir, '{}-images.jpg'.format(test_img_idx + 1))
             save_image(self.denorm(x_concat.data.cpu()), result_path, nrow=1, padding=0)
-
 
 
             checkpoint_path = os.path.join(self.model_save_dir, f'final_rainbow_dqn.pth')
@@ -1372,7 +1308,6 @@ class SolverRainbow(object):
         visualize_actions(action_history, image_indices, attr_indices, step_indices, train_flag)
 
 
-
         checkpoint_path = os.path.join(self.model_save_dir, f'final_rainbow_dqn.pth')
         try:
             torch.save({
@@ -1387,7 +1322,6 @@ class SolverRainbow(object):
 
         if self.run is not None:
             self.run.stop()
-
 
 
     """Helper function to create an N-step transition"""
@@ -1406,7 +1340,6 @@ class SolverRainbow(object):
             if d_bool:
                 break
         return state, action, n_step_reward, next_state, done
-
 
 
 """
@@ -1451,9 +1384,6 @@ class RainbowDQNAgent:
     NoisyNet does not use Epsilon-greedy, uses Value-based action selection
     """
     def select_action(self, state):
-
-
-
 
 
         self.steps_done += 1

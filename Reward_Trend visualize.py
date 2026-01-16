@@ -41,7 +41,6 @@ for path, label, color in file_paths:
     plt.plot(smoothed.index, smoothed.values, label=f"{label}", color=color, linewidth=2)
 
 
-
 plt.title("Reward Trend Over Episodes", fontsize=20)
 plt.xlabel("Episode", fontsize=20)
 plt.ylabel("Normalized Reward", fontsize=20)

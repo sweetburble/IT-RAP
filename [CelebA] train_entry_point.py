@@ -2,7 +2,7 @@ import os
 os.system(
     "python \"stargan_main.py\" "         # if using AttGAN, change to "attgan_main.py"
     "--mode train "
-    "--dataset CelebA "     
+    "--dataset CelebA "
     "--training_image_num 5 "
     "--image_size 256 "
     "--c_dim 5 "

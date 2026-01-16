@@ -3,7 +3,6 @@ import torch
 from .attgan import AttGAN
 
 
-
 parser = argparse.ArgumentParser()
 
 parser.add_argument('--img_size', dest='img_size', type=int, default=256)

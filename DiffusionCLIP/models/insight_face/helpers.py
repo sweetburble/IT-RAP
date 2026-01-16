@@ -7,8 +7,6 @@ ArcFace implementation from [TreB1eN](https://github.com/TreB1eN/InsightFace_Pyt
 """
 
 
-
-
 class Conv_block(Module):
     def __init__(self, in_c, out_c, kernel=(1, 1), stride=(1, 1), padding=(0, 0), groups=1):
         super(Conv_block, self).__init__()
@@ -59,11 +57,6 @@ class Residual(Module):
         self.model = Sequential(*modules)
     def forward(self, x):
         return self.model(x)
-
-
-
-
-
 
 
 class Flatten(Module):

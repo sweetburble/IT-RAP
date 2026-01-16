@@ -51,7 +51,6 @@ class AttackFunction(object):
             self.model.zero_grad()
 
 
-
             loss = self.loss_fn(output, y)
             loss.backward()
             grad = X.grad

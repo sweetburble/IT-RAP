@@ -92,7 +92,6 @@ class StandardTransform(object):
         return '\n'.join(body)
 
 
-
 class LSUNClass(VisionDataset):
     def __init__(self, root, transform=None, target_transform=None):
         import lmdb
@@ -141,7 +140,6 @@ class LSUNClass(VisionDataset):
 
     def __len__(self):
         return self.length
-
 
 
 class LSUN(VisionDataset):
@@ -240,11 +238,6 @@ class LSUN(VisionDataset):
 
     def extra_repr(self):
         return "Classes: {classes}".format(**self.__dict__)
-
-
-
-
-
 
 
 def get_lsun_dataset(data_root, config):

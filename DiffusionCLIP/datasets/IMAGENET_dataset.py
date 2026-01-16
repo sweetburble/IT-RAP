@@ -16,9 +16,6 @@ def get_imagenet_dataset(data_root, config, class_num=None, random_crop=True, ra
     return train_dataset, test_dataset
 
 
-
-
-
 class IMAGENET_dataset(Dataset):
     def __init__(self, image_root, mode='val', class_num=None, img_size=512, random_crop=True, random_flip=False):
         super().__init__()
@@ -50,8 +47,6 @@ class IMAGENET_dataset(Dataset):
         arr = arr.astype(np.float32) / 127.5 - 1
 
 
-
-
         return np.transpose(arr, [2, 0, 1])
 
     def __len__(self):
@@ -59,7 +54,6 @@ class IMAGENET_dataset(Dataset):
 
 
 def center_crop_arr(pil_image, image_size):
-
 
 
     while min(*pil_image.size) >= 2 * image_size:
@@ -82,8 +76,6 @@ def random_crop_arr(pil_image, image_size, min_crop_frac=0.8, max_crop_frac=1.0)
     min_smaller_dim_size = math.ceil(image_size / max_crop_frac)
     max_smaller_dim_size = math.ceil(image_size / min_crop_frac)
     smaller_dim_size = random.randrange(min_smaller_dim_size, max_smaller_dim_size + 1)
-
-
 
 
     while min(*pil_image.size) >= 2 * smaller_dim_size:

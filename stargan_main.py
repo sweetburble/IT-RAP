@@ -25,7 +25,6 @@ def main(config):
     )
 
 
-
     if not os.path.exists(config.log_dir):
         os.makedirs(config.log_dir)
     if not os.path.exists(config.model_save_dir):
@@ -40,8 +39,6 @@ def main(config):
     if config.mode == 'inference' and config.attack_method == 'cmua' and config.cmua_mode == 'train':
         data_loader_mode = 'train'
         print(f"[INFO] CMUA train mode: using training split (same as IT-RAP train)")
-
-
 
 
     dataset_loader = None
@@ -96,7 +93,6 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
 
-
     parser.add_argument('--c_dim', type=int, default=5, help='dimension of domain labels (1st dataset)')
     parser.add_argument('--c2_dim', type=int, default=8, help='dimension of domain labels (2nd dataset)')
     parser.add_argument('--celeba_crop_size', type=int, default=178, help='crop size for the CelebA dataset')
@@ -125,10 +121,7 @@ if __name__ == '__main__':
     parser.add_argument('--reward_weight', type=float, default=0.5, help='Reward weight (Deepfake defense: reward_weight, Imperceptibility: 1 - reward_weight)')
 
 
-
     parser.add_argument('--test_iters', type=int, default=200000, help='test model from this step')
-
-
 
 
     parser.add_argument('--num_workers', type=int, default=1)
@@ -172,7 +165,6 @@ if __name__ == '__main__':
     parser.add_argument('--dct_clamp', type=int, default=2, help='DCT noise value clamp')
 
 
-
     parser.add_argument('--attack_method', type=str, default='itrap', choices=['itrap', 'cmua'], help='Attack method: itrap (IT-RAP with Rainbow DQN) or cmua (CMUA universal perturbation)')
     parser.add_argument('--cmua_mode', type=str, default='inference', choices=['train', 'inference'], help='CMUA mode: train (generate perturbation) or inference (apply saved perturbation)')
     parser.add_argument('--cmua_train_images', type=int, default=100, help='Number of training images for CMUA (128)')
@@ -184,7 +176,6 @@ if __name__ == '__main__':
     parser.add_argument('--cmua_epsilon', type=float, default=0.05, help='Epsilon for CMUA (0.05)')
     parser.add_argument('--cmua_momentum', type=float, default=0.9, help='Momentum for CMUA gradient updates')
     parser.add_argument('--cmua_batch_size', type=int, default=64, help='Batch size for CMUA training (64)')
-
 
 
     config = parser.parse_args()

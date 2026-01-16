@@ -1,4 +1,3 @@
-
 import neptune
 import os
 import argparse
@@ -41,8 +40,6 @@ def main(config):
         print(f"[INFO] CMUA train mode: using training split (same as IT-RAP train)")
 
 
-
-
     dataset_loader = None
 
     if config.dataset == 'CelebA':
@@ -53,7 +50,6 @@ def main(config):
         dataset_loader = get_loader(config.images_dir, config.attr_path, config.selected_attrs,
                                 config.celeba_crop_size, config.image_size, config.batch_size,
                                 'MAADFace', config.mode, config.num_workers, config.start_index)
-
 
 
     solver = SolverRainbow(dataset_loader, config, run = run)
@@ -75,10 +71,8 @@ def main(config):
         solver.inference_rainbow_dqn(dataset_loader, result_dir=config.result_dir)
 
 
-
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-
 
 
     parser.add_argument('--c_dim', type=int, default=5, help='dimension of domain labels (1st dataset)')
@@ -107,7 +101,6 @@ if __name__ == '__main__':
 
     parser.add_argument('--start_index', type=int, default=0, help='Data index to start training from')
     parser.add_argument('--reward_weight', type=float, default=0.5, help='Reward weight (Deepfake defense: reward_weight, Imperceptibility: 1 - reward_weight)')
-
 
 
     parser.add_argument('--test_iters', type=int, default=200000, help='test model from this step')
@@ -166,7 +159,6 @@ if __name__ == '__main__':
     parser.add_argument('--cmua_epsilon', type=float, default=0.05, help='Epsilon for CMUA (0.05)')
     parser.add_argument('--cmua_momentum', type=float, default=0.9, help='Momentum for CMUA gradient updates')
     parser.add_argument('--cmua_batch_size', type=int, default=64, help='Batch size for CMUA training (64)')
-
 
 
     config = parser.parse_args()

@@ -9,7 +9,6 @@ import face_alignment
 import numpy as np
 
 
-
 class CelebA(data.Dataset):
     def __init__(self, image_dir, attr_path, selected_attrs, transform, mode):
         self.image_dir = image_dir
@@ -24,13 +23,10 @@ class CelebA(data.Dataset):
         self.idx2attr = {}
 
 
-
         self.attgan_attrs = [
             'Bald', 'Bangs', 'Black_Hair', 'Blond_Hair', 'Brown_Hair', 'Bushy_Eyebrows',
             'Eyeglasses', 'Male', 'Mouth_Slightly_Open', 'Mustache', 'No_Beard', 'Pale_Skin', 'Young'
         ]
-
-
 
 
         self.preprocess()
@@ -153,7 +149,6 @@ class MAADFace(data.Dataset):
         return self.num_images
 
 
-
 fa = face_alignment.FaceAlignment(face_alignment.LandmarksType.TWO_D, flip_input=False, device='cpu')
 def align_face(image: Image.Image, crop_size=178) -> Image.Image:
 
@@ -179,8 +174,6 @@ def align_face(image: Image.Image, crop_size=178) -> Image.Image:
     face_resized = face_box.resize((crop_size, crop_size), Image.BILINEAR)
 
     return face_resized
-
-
 
 
 def get_loader(image_dir, attr_path, selected_attrs, crop_size=178, image_size=128,

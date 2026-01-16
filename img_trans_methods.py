@@ -117,10 +117,6 @@ def denoise_opencv(x_adv):
         img_np = ((img_np + 1) * 127.5).astype(np.uint8)
 
 
-
-
-
-
         denoised_img = cv2.fastNlMeansDenoisingColored(img_np, None, 10, 10, 7, 21)
 
 
@@ -154,46 +150,9 @@ def denoise_scikit(x_adv):
     sigma_est = estimate_sigma(x_img, channel_axis=-1)
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     denoised_img = np.zeros_like(x_img)
     for i in range(x_img.shape[2]):
         denoised_img[:, :, i] = filters.median(x_img[:, :, i])
-
-
-
-
-
-
-
-
-
 
 
     denoised_img = denoised_img * 2 - 1

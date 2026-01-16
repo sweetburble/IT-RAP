@@ -1,12 +1,3 @@
-
-
-
-
-
-
-
-
-
 from .base import Processor
 
 from .smoothing import ConvSmoothing2D

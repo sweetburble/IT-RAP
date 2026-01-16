@@ -1,4 +1,3 @@
-
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
@@ -90,8 +89,8 @@ def calculate_and_save_metrics(
     perturbed_gen_image_np = perturbed_gen_image.squeeze(0).permute(1, 2, 0).cpu().numpy()
 
     defense_lpips = lpips_loss(original_gen_image, perturbed_gen_image).mean()
-    defense_psnr = psnr(original_gen_image_np, perturbed_gen_image_np, data_range=1.0)
-    defense_ssim = ssim(original_gen_image_np, perturbed_gen_image_np, data_range=1.0, win_size=3, channel_axis=2)
+    defense_psnr = psnr(original_gen_image_np, perturbed_gen_image_np, data_range=2.0)
+    defense_ssim = ssim(original_gen_image_np, perturbed_gen_image_np, data_range=2.0, win_size=3, channel_axis=2)
 
     results[transform_type]["defense_lpips"] += defense_lpips.item()
     results[transform_type]["defense_psnr"] += defense_psnr
@@ -146,7 +145,6 @@ def print_comprehensive_metrics(results, episode, total_invisible_psnr, total_in
     print(header2)
     print(header3)
     output_lines.extend([header1, header2, header3])
-
 
 
     if combo_index is not None:
@@ -222,7 +220,6 @@ def print_comprehensive_metrics(results, episode, total_invisible_psnr, total_in
     score = (avg_invisible_psnr / 27) + (avg_invisible_ssim) + (1 - avg_invisible_lpips) + (2 * avg_success_rate)
 
 
-
     if combo_index is not None and isinstance(combo_index, int) and combo_index >= 0:
         try:
             combo_summary = {
@@ -246,7 +243,6 @@ def print_comprehensive_metrics(results, episode, total_invisible_psnr, total_in
                 }
 
             json_path = os.path.join(output_dir, f"combo_{combo_index}.json")
-
 
 
             try:
@@ -324,7 +320,6 @@ def visualize_actions(action_history, image_indices, attr_indices, step_indices,
                     print(f"[WARN] Failed to move {src_path} -> {dst_path}: {e}")
     else:
         print("'result_test', 'result_inference', or 'result_test_att' folder does not exist.")
-
 
 
     print("Creating DataFrame...")
@@ -489,7 +484,6 @@ def visualize_actions(action_history, image_indices, attr_indices, step_indices,
 
     if is_massive_dataset:
         print("   Starting clustering analysis for large dataset...")
-
 
 
         sample_size = min(5000, unique_images)
@@ -791,7 +785,6 @@ def visualize_actions(action_history, image_indices, attr_indices, step_indices,
     print(f"Results have been saved to the '{save_dir}' folder.")
 
 
-
 def plot_reward_trend(reward_list, window_size=25, save_path="reward_trend.png"):
     try:
         import matplotlib.pyplot as plt
@@ -799,7 +792,6 @@ def plot_reward_trend(reward_list, window_size=25, save_path="reward_trend.png")
 
         episodes = np.arange(len(reward_list))
         reward_array = np.array(reward_list)
-
 
 
         if reward_array.size == 0:
@@ -863,7 +855,6 @@ def plot_reward_trend(reward_list, window_size=25, save_path="reward_trend.png")
     except Exception as e:
         print(f"[WARN] plot_reward_trend failed: {e}")
         return
-
 
 
 def save_reward_moving_average_txt(reward_list, window_size=25, save_path="reward_moving_avg.txt"):

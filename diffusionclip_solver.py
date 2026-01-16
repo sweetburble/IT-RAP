@@ -32,11 +32,6 @@ from segment_tree import MinSegmentTree, SumSegmentTree
 from meso_net import Meso4, MesoInception4, convert_tf_weights_to_pytorch
 
 
-
-
-
-
-
 np.random.seed(0)
 
 """Noisy Layer"""
@@ -326,265 +321,6 @@ class SolverRainbow(object):
         self.build_rlab_agent()
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     def load_rainbow_dqn_checkpoint(self, checkpoint_path):
         abs_path = os.path.abspath(checkpoint_path)
         if not os.path.exists(abs_path):
@@ -634,8 +370,6 @@ class SolverRainbow(object):
 
             print("[WARN] Optimizer state not loaded due to partial weight load.")
             return
-
-
 
 
     def build_model(self):
@@ -703,8 +437,6 @@ class SolverRainbow(object):
             state_dim = 1024
 
 
-
-
         num_attrs = max(1, len(getattr(self, 'target_attributes', {})))
         total_steps_est = int(self.max_steps_per_episode) * int(self.training_image_num) * int(num_attrs)
         initial_ratio_steps = max(0, total_steps_est // 2)
@@ -762,7 +494,6 @@ class SolverRainbow(object):
         return c_trg_list
 
 
-
     """
         Reward calculation function
         LPIPS: A value between [0, 1]. The lower the value, the more similar the two images are.
@@ -786,14 +517,13 @@ class SolverRainbow(object):
         reward_defense = ((defense_l1_loss / 10) + (defense_l2_loss / 5) + defense_lpips) * 5
 
 
-
         x_real_np = x_real.squeeze().cpu().numpy()
         perturbed_image_np = perturbed_image.squeeze().cpu().numpy()
         if np.array_equal(x_real_np, perturbed_image_np):
             invisibility_psnr = 100.0
         else:
             invisibility_psnr = psnr(x_real.squeeze().cpu().numpy(), perturbed_image.squeeze().cpu().numpy(), data_range=2.0)
-        invisibility_ssim = ssim(x_real.squeeze().cpu().numpy(), perturbed_image.squeeze().cpu().numpy(), data_range=2.0, win_size=3, channel_axis=0, multichannel=True)
+        invisibility_ssim = ssim(x_real.squeeze().cpu().numpy(), perturbed_image.squeeze().cpu().numpy(), data_range=2.0, win_size=3, channel_axis=0)
         invisibility_lpips = self.lpips_loss(perturbed_image, x_real).mean()
 
 
@@ -934,8 +664,6 @@ class SolverRainbow(object):
             x_real = x_real.to(self.device)
 
 
-
-
             attack_func = diffusionclip_attacks.AttackFunction(config=self.config, diffusion_model=self.diffusionclip_wrapper, device=self.device)
 
 
@@ -947,7 +675,6 @@ class SolverRainbow(object):
             transforms_result_list = [x_real]
 
 
-
             attr_keys = list(self.target_attributes.keys())
 
             for idx, attr_name in enumerate(attr_keys):
@@ -957,8 +684,6 @@ class SolverRainbow(object):
 
                 perturbed_image = x_real.clone().detach_() + torch.tensor(np.random.uniform(-self.noise_level, self.noise_level, x_real.shape).astype('float32')).to(self.device)
                 perturbed_image = perturbed_image.clamp(-1.0, 1.0)
-
-
 
 
                 with torch.no_grad():
@@ -991,9 +716,7 @@ class SolverRainbow(object):
                     step_indices.append(step)
 
 
-
                     if action == 0:
-
 
 
                         perturbed_image, _ = attack_func.Diff_PGD(
@@ -1016,12 +739,10 @@ class SolverRainbow(object):
                         raise ValueError("Invalid action index")
 
 
-
                     with torch.no_grad():
                         perturbed_gen_image = self.diffusionclip_wrapper.forward_edit(
                             perturbed_image, attr_name, t_0=self.t_0, n_inv_step=self.n_inv_step, n_test_step=self.n_test_step
                         )
-
 
 
                     reward, defense_l1_loss, defense_l2_loss, defense_lpips, invisibility_ssim, invisibility_psnr, invisibility_lpips = self.calculate_reward(original_gen_image, perturbed_gen_image, x_real, perturbed_image, attr_name)
@@ -1044,14 +765,7 @@ class SolverRainbow(object):
                     reward_tensor = torch.tensor([reward], dtype=torch.float32).to(self.device)
 
 
-
-
-
-
-
                     next_state = self.get_state(perturbed_image, perturbed_gen_image)
-
-
 
 
                     n_step_buffer_test_attack.append((state, action, reward_tensor, next_state, torch.tensor([False])))
@@ -1074,12 +788,8 @@ class SolverRainbow(object):
                 reward_per_episode.append(total_reward_this_episode)
 
 
-
-
-
                 analyzed_perturbation_array = analyze_perturbation(perturbed_image - x_real)
                 total_perturbation_map += analyzed_perturbation_array
-
 
 
                 with torch.no_grad():
@@ -1190,12 +900,10 @@ class SolverRainbow(object):
                     episode += 1
 
 
-
                 if episode % self.target_update_interval == 0:
 
                     self.rl_agent.update_target_net()
                     self.rl_agent.reset_noise()
-
 
 
             all_result_lists = [noattack_result_list, jpeg_result_list, opencv_result_list, median_result_list, padding_result_list, transforms_result_list]
@@ -1203,10 +911,6 @@ class SolverRainbow(object):
             for result_list in all_result_lists:
                 row_concat = torch.cat(result_list, dim=3)
                 row_images.append(row_concat)
-
-
-
-
 
 
             spacing = 10
@@ -1227,8 +931,6 @@ class SolverRainbow(object):
             save_image(self.denorm(x_concat_safe), result_path, nrow=1, padding=0)
 
 
-
-
             try:
                 from collections import Counter
 
@@ -1245,7 +947,6 @@ class SolverRainbow(object):
                 )
             except Exception as e:
                 print(f"[Action Distribution: Image] Failed to compute: {e}")
-
 
 
             checkpoint_path = os.path.join(self.model_save_dir, f'final_rainbow_dqn.pth')
@@ -1281,7 +982,6 @@ class SolverRainbow(object):
             )
         except Exception as e:
             print(f"[Action Distribution: Overall] Failed to compute: {e}")
-
 
 
         checkpoint_path = os.path.join(self.model_save_dir, f'final_rainbow_dqn.pth')
@@ -1360,7 +1060,6 @@ class RainbowDQNAgent:
     def select_action(self, state):
 
         return torch.tensor([[1]], device=device)
-
 
 
         self.steps_done += 1

@@ -54,7 +54,6 @@ class Generator(nn.Module):
     def forward(self, x, c):
 
 
-
         c = c.view(c.size(0), c.size(1), 1, 1)
         c = c.repeat(1, 1, x.size(2), x.size(3))
         x = torch.cat([x, c], dim=1)
@@ -148,7 +147,6 @@ class AvgBlurGenerator(nn.Module):
     def forward(self, x, c):
         if c is None:
             raise ValueError("Error: 'c' (conditioning vector) is None in forward() function.")
-
 
 
         c = c.view(c.size(0), c.size(1), 1, 1)

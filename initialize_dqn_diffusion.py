@@ -4,7 +4,6 @@ from torch.optim import Adam
 from diffusionclip_solver import RainbowDQNNet
 
 
-
 state_dim = 1024
 action_dim = 6
 atom_size = 11

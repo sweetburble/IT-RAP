@@ -1,5 +1,3 @@
-
-
 from abc import abstractmethod
 
 import math
@@ -253,7 +251,6 @@ class AttentionBlock(nn.Module):
 def count_flops_attn(model, _x, y):
     b, c, *spatial = y[0].shape
     num_spatial = int(np.prod(spatial))
-
 
 
     matmul_ops = 2 * b * (num_spatial ** 2) * c
@@ -516,13 +513,8 @@ class UNetModel(nn.Module):
     def forward(self, x, timesteps, y=None, ref_img=None):
 
 
-
-
         hs = []
         emb = self.time_embed(timestep_embedding(timesteps, self.model_channels))
-
-
-
 
 
         h = x.type(self.dtype)

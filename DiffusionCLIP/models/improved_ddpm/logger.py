@@ -1,4 +1,3 @@
-
 import os
 import sys
 import os.path as osp
@@ -156,11 +155,6 @@ def make_output_format(format, ev_dir, log_suffix=""):
         raise ValueError("Unknown format specified: %s" % (format,))
 
 
-
-
-
-
-
 def logkv(key, val):
     get_current().logkv(key, val)
 
@@ -240,11 +234,6 @@ def profile(n):
     return decorator_with_name
 
 
-
-
-
-
-
 def get_current():
     if Logger.CURRENT is None:
         _configure_default_logger()
@@ -264,7 +253,6 @@ class Logger(object):
         self.dir = dir
         self.output_formats = output_formats
         self.comm = comm
-
 
 
     def logkv(self, key, val):
@@ -301,7 +289,6 @@ class Logger(object):
             self._do_log(args)
 
 
-
     def set_level(self, level):
         self.level = level
 
@@ -314,7 +301,6 @@ class Logger(object):
     def close(self):
         for fmt in self.output_formats:
             fmt.close()
-
 
 
     def _do_log(self, args):

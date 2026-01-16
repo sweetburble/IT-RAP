@@ -297,7 +297,6 @@ if __name__ == "__main__":
     meso_inception4_h5_path_f2f = "./weights/MesoInception_F2F.h5"
 
 
-
     try:
         convert_tf_weights_to_pytorch(meso4_h5_path_df, meso4_model, 'meso4')
         print("Meso4 (Deepfakes) weights loaded successfully.")
@@ -321,7 +320,6 @@ if __name__ == "__main__":
         print("MesoInception4 (Face2Face) weights loaded successfully.")
     except Exception as e:
         print(f"Failed to load MesoInception4 (Face2Face) weights: {e}")
-
 
 
     meso4_model.eval()

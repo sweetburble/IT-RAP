@@ -35,10 +35,6 @@ class AttackFunction(object):
             p.requires_grad_(False)
 
 
-
-
-
-
         self.epsilon = max(epsilon, 0.08)
         self.alpha = max(alpha, 0.012)
 
@@ -65,8 +61,6 @@ class AttackFunction(object):
         self._mist_target = None
 
 
-
-
         self.score_attack_weight = 0.6
         self.textural_weight = 0.25
         self.semantic_weight = 0.15
@@ -77,9 +71,6 @@ class AttackFunction(object):
     def Diff_PGD(self, X_nat, target_img, target_attr, X_base=None):
         base = X_nat if X_base is None else X_base
         X = X_nat.clone().detach_()
-
-
-
 
 
         iter_count = max(self.config.pgd_iter, 12)
@@ -102,9 +93,6 @@ class AttackFunction(object):
             batch_size = X.shape[0]
 
 
-
-
-
             num_timesteps = 8
 
             timesteps = torch.linspace(int(max_timestep*0.1), max_timestep-1, num_timesteps).long().to(self.device)
@@ -115,9 +103,6 @@ class AttackFunction(object):
                 t_batch = torch.ones(batch_size, dtype=torch.long, device=self.device) * t
 
                 with torch.autocast(device_type="cuda", dtype=torch.float16):
-
-
-
 
 
                     noise = torch.randn_like(X).to(self.device)
@@ -134,11 +119,7 @@ class AttackFunction(object):
                     self.model.model.zero_grad()
 
 
-
                     score_loss = -torch.mean(epsilon_pred ** 2)
-
-
-
 
 
                     pred_x0 = (x_t - sqrt_one_minus_alpha_bar * epsilon_pred) / sqrt_alpha_bar
@@ -147,13 +128,7 @@ class AttackFunction(object):
                     deviated_loss = -self.loss_fn(pred_x0, target_img)
 
 
-
-
-
                     textural_loss = self.loss_fn(pred_x0, self._mist_target)
-
-
-
 
 
                     try:
@@ -162,16 +137,8 @@ class AttackFunction(object):
                         lpips_val = torch.tensor(0.0, device=self.device)
 
 
-
-
-
-
-
                     t_normalized = t.float() / max_timestep
                     timestep_weight = 0.3 + 0.7 * (1 - (t_normalized - 0.5)**2 * 4)
-
-
-
 
 
                     loss_t = timestep_weight * (
@@ -191,10 +158,6 @@ class AttackFunction(object):
             if grad is None:
                 print(f"Warning: Gradient is None at iter {i}")
                 break
-
-
-
-
 
 
             grad_magnitude = torch.abs(grad)
@@ -248,9 +211,6 @@ class AttackFunction(object):
         for i in range(iter_count):
             X.requires_grad = True
             batch_size = X.shape[0]
-
-
-
 
 
             K_timesteps = 6
@@ -312,9 +272,6 @@ class AttackFunction(object):
         X = X_nat.clone().detach_()
 
 
-
-
-
         iter_count = iter_count or max(getattr(self.config, 'inv_attack_iter', 4), 6)
 
 
@@ -342,8 +299,6 @@ class AttackFunction(object):
                 current_latent = self._compute_inversion_latent_fast(X, t_0, n_inv_step)
 
 
-
-
             grad = torch.zeros_like(X)
 
 
@@ -358,10 +313,6 @@ class AttackFunction(object):
                 with torch.no_grad():
                     X_plus = torch.clamp(X + fd_eps * direction, -1, 1)
                     latent_plus = self._compute_inversion_latent_fast(X_plus, t_0, n_inv_step)
-
-
-
-
 
 
                     deviation_loss = -torch.mean((latent_plus - clean_latent) ** 2)
@@ -456,14 +407,11 @@ class AttackFunction(object):
             X.requires_grad = True
 
 
-
             output = self.model.forward_edit(X, target_attr,
                                             t_0=200, n_inv_step=10, n_test_step=10)
 
 
             self.model.model.zero_grad()
-
-
 
 
             loss = self.loss_fn(output, target_img)
@@ -479,11 +427,6 @@ class AttackFunction(object):
                 break
 
 
-
-
-
-
-
             X_adv = X - self.alpha * grad.sign()
 
 
@@ -494,8 +437,6 @@ class AttackFunction(object):
 
 
     def perturb_frequency_domain(self, X_nat, target_attr, freq_band='ALL', iter=1, X_base=None, original_gen_image=None):
-
-
 
 
         dct_clamp = max(getattr(self.config, 'dct_clamp', 0.1), 0.15)
@@ -518,9 +459,6 @@ class AttackFunction(object):
 
         if X_nat.shape[0] != freq_mask.shape[0]:
             freq_mask = freq_mask[:1].repeat(X_nat.shape[0], 1, 1, 1)
-
-
-
 
 
         eta_dct = torch.zeros_like(X_nat_dct)
@@ -546,10 +484,6 @@ class AttackFunction(object):
         for i in range(iter):
 
 
-
-
-
-
             X_dct_current = X_nat_dct + eta_dct
             X_current = torch.zeros_like(base)
             for b in range(base.shape[0]):
@@ -566,10 +500,6 @@ class AttackFunction(object):
                 t = torch.tensor([100], device=self.device)
                 pred_x0 = self.model.predict_x0_from_xt(X_current, t, use_autocast=True)
                 self.model.model.zero_grad()
-
-
-
-
 
 
                 if original_gen_image is not None:
@@ -597,8 +527,6 @@ class AttackFunction(object):
             if grad_img is None:
                 print(f"  [!] No gradient at iter {i}")
                 continue
-
-
 
 
             grad_dct = torch.zeros_like(eta_dct)

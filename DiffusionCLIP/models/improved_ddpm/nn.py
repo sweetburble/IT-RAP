@@ -1,9 +1,7 @@
-
 import math
 
 import torch as th
 import torch.nn as nn
-
 
 
 class SiLU(nn.Module):
@@ -99,7 +97,6 @@ class CheckpointFunction(th.autograd.Function):
     def backward(ctx, *output_grads):
         ctx.input_tensors = [x.detach().requires_grad_(True) for x in ctx.input_tensors]
         with th.enable_grad():
-
 
 
             shallow_copies = [x.view_as(x) for x in ctx.input_tensors]

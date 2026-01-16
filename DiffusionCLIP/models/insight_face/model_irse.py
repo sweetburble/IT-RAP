@@ -40,12 +40,6 @@ class MobileFaceNet(Module):
 		return l2_norm(out)
 
 
-
-
-
-
-
-
 class Backbone(Module):
 	def __init__(self, input_size, num_layers, mode='ir', drop_ratio=0.4, affine=True):
 		super(Backbone, self).__init__()

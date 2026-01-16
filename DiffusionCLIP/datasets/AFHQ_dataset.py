@@ -23,8 +23,6 @@ class AFHQ_dataset(Dataset):
         return len(self.image_paths)
 
 
-
-
 def get_afhq_dataset(data_root, config):
     train_transform = tfs.Compose([tfs.ToTensor(),
                                    tfs.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5),

@@ -1,4 +1,3 @@
-
 import torch
 import torch.nn as nn
 from .nn import LinearBlock, Conv2dBlock, ConvTranspose2dBlock
@@ -6,8 +5,6 @@ import torch.autograd as autograd
 import torch.nn.functional as F
 import torch.optim as optim
 import argparse
-
-
 
 
 MAX_DIM = 64 * 16
@@ -182,7 +179,6 @@ class AttGAN():
         d_fake, dc_fake = self.D(img_fake)
 
 
-
         if self.mode == 'wgan':
             gf_loss = -d_fake.mean()
         elif self.mode == 'lsgan':
@@ -252,7 +248,6 @@ class AttGAN():
             return gp
 
 
-
         if self.mode == 'wgan':
             wd = d_real.mean() - d_fake.mean()
             df_loss = -wd
@@ -317,7 +312,6 @@ class AttGAN():
         torch.save(states, path)
 
 if __name__ == '__main__':
-
 
 
     parser = argparse.ArgumentParser()

@@ -1,7 +1,7 @@
 import os
 os.system(
     "python \"stargan_main.py\" "      # if using AttGAN, change to "attgan_main.py"
-    "--mode train " 
+    "--mode train "
     "--dataset MAADFace "
     "--training_image_num 200 "
     "--image_size 256 "
@@ -13,5 +13,5 @@ os.system(
     "--result_dir=result_test "
     "--test_iters 200000 "
     "--batch_size 1 "
-    "--start_index 900" 
+    "--start_index 900"
 )

@@ -170,7 +170,6 @@ class DiffusionCLIP(object):
             torch.save(img_lat_pairs, pairs_path)
 
 
-
         print(f"Sampling type: {self.args.sample_type.upper()} with eta {self.args.eta}")
         if self.args.n_test_step != 0:
             seq_test = np.linspace(0, 1, self.args.n_test_step) * self.args.t_0
@@ -312,7 +311,6 @@ class DiffusionCLIP(object):
                     x_lat = torch.load(x_lat_path)
 
 
-
             print(f"Sampling type: {self.args.sample_type.upper()} with eta {self.args.eta}, "
                   f" Steps: {self.args.n_test_step}/{self.args.t_0}")
             if self.args.n_test_step != 0:
@@ -366,10 +364,6 @@ class DiffusionCLIP(object):
     def unseen2unseen(self):
 
         n = self.args.bs_test
-
-
-
-
 
 
         img = Image.open(self.args.img_path).convert("RGB")

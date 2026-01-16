@@ -59,7 +59,6 @@ SRC_TRG_TXT_DIC = {
                ['The Jocker']),
 
 
-
     'dog_nicolas': (['Dog'],
                     ['Nicolas Cage']),
     'dog_yorkshire': (['Dog'],
@@ -82,7 +81,6 @@ SRC_TRG_TXT_DIC = {
                     ['Hamster']),
 
 
-
     'church_snow': (['Church'],
                     ['Snow Coverd Church']),
     'church_night': (['Church'],
@@ -103,7 +101,6 @@ SRC_TRG_TXT_DIC = {
                        ['factory with chimneys']),
     'church_department_store': (['church'],
                                 ['department store']),
-
 
 
     'bedroom_blue': (['Bedroom'],
