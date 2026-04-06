@@ -66,12 +66,27 @@ def main(config):
     elif config.mode == 'inference':
         if config.attack_method != 'cmua':
 
-            checkpoint_path = os.path.join(config.model_save_dir, f'final_rainbow_dqn.pth')
-            solver.load_rainbow_dqn_checkpoint(checkpoint_path)
-
             solver.restore_model(config.test_iters)
 
-            solver.inference_rainbow_dqn(dataset_loader, result_dir=config.result_dir)
+            if config.action_policy == 'random':
+                print("[INFO] Running Random Policy baseline inference...")
+                solver.inference_random_policy(dataset_loader, result_dir=config.result_dir)
+
+            elif config.action_policy == 'greedy':
+                print("[INFO] Running Greedy Policy baseline inference...")
+                # Build a calibration loader from the training split
+                calib_loader = get_loader(
+                    config.images_dir, config.attr_path, config.selected_attrs,
+                    config.celeba_crop_size, config.image_size, config.batch_size,
+                    config.dataset, 'train', config.num_workers, config.start_index)
+                solver.inference_greedy_policy(
+                    dataset_loader, result_dir=config.result_dir,
+                    calib_loader=calib_loader, calib_image_num=config.calib_image_num)
+
+            else:  # 'rl' (default)
+                checkpoint_path = os.path.join(config.model_save_dir, f'final_rainbow_dqn.pth')
+                solver.load_rainbow_dqn_checkpoint(checkpoint_path)
+                solver.inference_rainbow_dqn(dataset_loader, result_dir=config.result_dir)
         if config.attack_method == 'cmua':
 
             solver.restore_model(config.test_iters)
@@ -176,6 +191,14 @@ if __name__ == '__main__':
     parser.add_argument('--cmua_epsilon', type=float, default=0.05, help='Epsilon for CMUA (0.05)')
     parser.add_argument('--cmua_momentum', type=float, default=0.9, help='Momentum for CMUA gradient updates')
     parser.add_argument('--cmua_batch_size', type=int, default=64, help='Batch size for CMUA training (64)')
+
+    # ---- Baseline action policy arguments ----
+    parser.add_argument('--action_policy', type=str, default='rl',
+                        choices=['rl', 'random', 'greedy'],
+                        help='Action selection policy: rl (default, uses trained Rainbow DQN), '
+                             'random (uniform random), greedy (calibration-based greedy)')
+    parser.add_argument('--calib_image_num', type=int, default=50,
+                        help='Number of calibration images for greedy policy baseline')
 
 
     config = parser.parse_args()
