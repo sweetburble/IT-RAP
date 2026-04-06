@@ -906,19 +906,19 @@ class SolverRainbow(object):
                 perturbed_image = x_real.clone().detach() + torch.tensor(
                     np.random.uniform(-0.01, 0.01, x_real.shape).astype('float32')).to(self.device)
 
-                with torch.no_grad():
-                    if action == 0:
-                        perturbed_image, _ = calib_attack_func.PGD(
-                            perturbed_image, original_gen_image, c_trg)
-                    elif action == 1:
-                        perturbed_image, _ = calib_attack_func.perturb_frequency_domain(
-                            perturbed_image, original_gen_image, c_trg, freq_band='LOW')
-                    elif action == 2:
-                        perturbed_image, _ = calib_attack_func.perturb_frequency_domain(
-                            perturbed_image, original_gen_image, c_trg, freq_band='MID')
-                    elif action == 3:
-                        perturbed_image, _ = calib_attack_func.perturb_frequency_domain(
-                            perturbed_image, original_gen_image, c_trg, freq_band='HIGH')
+                # Apply the candidate action once (gradient required for PGD/freq attacks)
+                if action == 0:
+                    perturbed_image, _ = calib_attack_func.PGD(
+                        perturbed_image, original_gen_image, c_trg)
+                elif action == 1:
+                    perturbed_image, _ = calib_attack_func.perturb_frequency_domain(
+                        perturbed_image, original_gen_image, c_trg, freq_band='LOW')
+                elif action == 2:
+                    perturbed_image, _ = calib_attack_func.perturb_frequency_domain(
+                        perturbed_image, original_gen_image, c_trg, freq_band='MID')
+                elif action == 3:
+                    perturbed_image, _ = calib_attack_func.perturb_frequency_domain(
+                        perturbed_image, original_gen_image, c_trg, freq_band='HIGH')
 
                 with torch.no_grad():
                     x_adv_jpeg = compress_jpeg(perturbed_image, quality=75)

@@ -922,15 +922,14 @@ class SolverRainbow(object):
                 perturbed_image = x_real.clone().detach() + torch.tensor(
                     np.random.uniform(-0.01, 0.01, x_real.shape).astype('float32')).to(self.device)
 
-                # Apply the candidate action once
-                with torch.no_grad():
-                    if action == 0:
-                        perturbed_image, _ = calib_attack_func.PGD(
-                            perturbed_image, original_gen_image, c_trg)
-                    else:
-                        freq_band = ['LOW', 'MID', 'HIGH'][action - 1]
-                        perturbed_image, _ = calib_attack_func.perturb_frequency_domain(
-                            perturbed_image, original_gen_image, c_trg, freq_band=freq_band)
+                # Apply the candidate action once (gradient required for PGD/freq attacks)
+                if action == 0:
+                    perturbed_image, _ = calib_attack_func.PGD(
+                        perturbed_image, original_gen_image, c_trg)
+                else:
+                    freq_band = ['LOW', 'MID', 'HIGH'][action - 1]
+                    perturbed_image, _ = calib_attack_func.perturb_frequency_domain(
+                        perturbed_image, original_gen_image, c_trg, freq_band=freq_band)
 
                 # Measure L2 gain under each transform
                 with torch.no_grad():
