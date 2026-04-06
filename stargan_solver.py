@@ -710,6 +710,465 @@ class SolverRainbow(object):
         print(f"[INFO] Rainbow DQN model loaded successfully: {checkpoint_path}")
 
 
+    # =========================================================================
+    # Baseline: Random Policy
+    # =========================================================================
+    def inference_random_policy(self, data_loader, result_dir):
+        """Inference using uniformly random action selection (baseline for RL ablation)."""
+        os.makedirs(result_dir, exist_ok=True)
+        self.attack_func = stargan_attacks.AttackFunction(config=self.config, model=self.G, device=self.device)
+
+        results = {
+            "원본(변형없음)": {"l1_error": 0.0, "l2_error": 0.0, "defense_psnr": 0.0,
+                        "defense_ssim": 0.0, "defense_lpips": 0.0, "attack_success": 0, "total_remain_map": np.zeros((256, 256))},
+            "JPEG압축": {"l1_error": 0.0, "l2_error": 0.0, "defense_psnr": 0.0,
+                    "defense_ssim": 0.0, "defense_lpips": 0.0, "attack_success": 0, "total_remain_map": np.zeros((256, 256))},
+            "OpenCV디노이즈": {"l1_error": 0.0, "l2_error": 0.0, "defense_psnr": 0.0,
+                        "defense_ssim": 0.0, "defense_lpips": 0.0, "attack_success": 0, "total_remain_map": np.zeros((256, 256))},
+            "중간값스무딩": {"l1_error": 0.0, "l2_error": 0.0, "defense_psnr": 0.0,
+                        "defense_ssim": 0.0, "defense_lpips": 0.0, "attack_success": 0, "total_remain_map": np.zeros((256, 256))},
+            "크기조정패딩": {"l1_error": 0.0, "l2_error": 0.0, "defense_psnr": 0.0,
+                    "defense_ssim": 0.0, "defense_lpips": 0.0, "attack_success": 0, "total_remain_map": np.zeros((256, 256))},
+            "이미지변환": {"l1_error": 0.0, "l2_error": 0.0, "defense_psnr": 0.0,
+                    "defense_ssim": 0.0, "defense_lpips": 0.0, "attack_success": 0, "total_remain_map": np.zeros((256, 256))}
+        }
+        total_invisible_psnr, total_invisible_ssim, total_invisible_lpips = 0.0, 0.0, 0.0
+        episode = 0
+        action_history = []
+        image_indices = []
+        attr_indices = []
+        step_indices = []
+
+        for infer_img_idx, (x_real, c_org, filename) in enumerate(data_loader):
+            x_real = x_real.to(self.device)
+            noattack_result_list = [x_real]
+            jpeg_result_list = [x_real]
+            opencv_result_list = [x_real]
+            median_result_list = [x_real]
+            padding_result_list = [x_real]
+            transforms_result_list = [x_real]
+
+            c_trg_list = self.create_labels(c_org, self.c_dim, self.dataset, self.selected_attrs)
+            for idx, c_trg in enumerate(c_trg_list):
+                c_trg = c_trg.to(self.device)
+                perturbed_image = x_real.clone().detach_() + torch.tensor(
+                    np.random.uniform(-0.01, 0.01, x_real.shape).astype('float32')).to(self.device)
+
+                for step in range(self.max_steps_per_episode):
+                    with torch.no_grad():
+                        original_gen_image, _ = self.G(x_real, c_trg)
+                        perturbed_gen_image, _ = self.G(perturbed_image, c_trg)
+
+                    # ---- Random action selection ----
+                    action = random.randint(0, 3)
+                    print(f"[Random Policy] Step {step+1}: action={action}")
+
+                    action_history.append(action)
+                    image_indices.append(infer_img_idx)
+                    attr_indices.append(idx)
+                    step_indices.append(step)
+
+                    if action == 0:
+                        perturbed_image, _ = self.attack_func.PGD(perturbed_image, original_gen_image, c_trg)
+                    else:
+                        freq_band = ['LOW', 'MID', 'HIGH'][action - 1]
+                        perturbed_image, _ = self.attack_func.perturb_frequency_domain(
+                            perturbed_image, original_gen_image, c_trg, freq_band=freq_band)
+
+                analyzed_perturbation_array = analyze_perturbation(perturbed_image - x_real)
+
+                with torch.no_grad():
+                    remain_perturb_array = analyze_perturbation(perturbed_image - x_real)
+                    results["원본(변형없음)"]["total_remain_map"] += remain_perturb_array
+                    original_gen_image, _ = self.G(x_real, c_trg)
+                    perturbed_gen_image_orig, _ = self.G(perturbed_image, c_trg)
+                    noattack_result_list.append(perturbed_image)
+                    noattack_result_list.append(original_gen_image)
+                    noattack_result_list.append(perturbed_gen_image_orig)
+                    results = calculate_and_save_metrics(original_gen_image, perturbed_gen_image_orig, "원본(변형없음)", results)
+
+                x_adv_jpeg = compress_jpeg(perturbed_image, quality=75)
+                with torch.no_grad():
+                    remain_perturb_array = analyze_perturbation(x_adv_jpeg - x_real)
+                    results["JPEG압축"]["total_remain_map"] += remain_perturb_array
+                    perturbed_gen_image_jpeg, _ = self.G(x_adv_jpeg, c_trg)
+                    jpeg_result_list.append(x_adv_jpeg)
+                    jpeg_result_list.append(original_gen_image)
+                    jpeg_result_list.append(perturbed_gen_image_jpeg)
+                    results = calculate_and_save_metrics(original_gen_image, perturbed_gen_image_jpeg, "JPEG압축", results)
+
+                x_adv_denoise_opencv = denoise_opencv(perturbed_image)
+                with torch.no_grad():
+                    remain_perturb_array = analyze_perturbation(x_adv_denoise_opencv - x_real)
+                    results["OpenCV디노이즈"]["total_remain_map"] += remain_perturb_array
+                    perturbed_gen_image_opencv, _ = self.G(x_adv_denoise_opencv, c_trg)
+                    opencv_result_list.append(x_adv_denoise_opencv)
+                    opencv_result_list.append(original_gen_image)
+                    opencv_result_list.append(perturbed_gen_image_opencv)
+                    results = calculate_and_save_metrics(original_gen_image, perturbed_gen_image_opencv, "OpenCV디노이즈", results)
+
+                x_adv_median = denoise_scikit(perturbed_image)
+                with torch.no_grad():
+                    remain_perturb_array = analyze_perturbation(x_adv_median - x_real)
+                    results["중간값스무딩"]["total_remain_map"] += remain_perturb_array
+                    perturbed_gen_image_median, _ = self.G(x_adv_median, c_trg)
+                    median_result_list.append(x_adv_median)
+                    median_result_list.append(original_gen_image)
+                    median_result_list.append(perturbed_gen_image_median)
+                    results = calculate_and_save_metrics(original_gen_image, perturbed_gen_image_median, "중간값스무딩", results)
+
+                x_real_padding, x_adv_padding = random_resize_padding(x_real, perturbed_image)
+                with torch.no_grad():
+                    remain_perturb_array = analyze_perturbation(x_adv_padding - x_real_padding)
+                    results["크기조정패딩"]["total_remain_map"] += remain_perturb_array
+                    original_gen_image_padding, _ = self.G(x_real_padding, c_trg)
+                    perturbed_gen_image_padding, _ = self.G(x_adv_padding, c_trg)
+                    padding_result_list.append(x_adv_padding)
+                    padding_result_list.append(original_gen_image_padding)
+                    padding_result_list.append(perturbed_gen_image_padding)
+                    results = calculate_and_save_metrics(original_gen_image_padding, perturbed_gen_image_padding, "크기조정패딩", results)
+
+                x_real_transforms, x_adv_transforms = random_image_transforms(x_real, perturbed_image)
+                with torch.no_grad():
+                    remain_perturb_array = analyze_perturbation(x_adv_transforms - x_real_transforms)
+                    results["이미지변환"]["total_remain_map"] += remain_perturb_array
+                    original_gen_image_transforms, _ = self.G(x_real_transforms, c_trg)
+                    perturbed_gen_image_transforms, _ = self.G(x_adv_transforms, c_trg)
+                    transforms_result_list.append(x_adv_transforms)
+                    transforms_result_list.append(original_gen_image_transforms)
+                    transforms_result_list.append(perturbed_gen_image_transforms)
+                    results = calculate_and_save_metrics(original_gen_image_transforms, perturbed_gen_image_transforms, "이미지변환", results)
+
+                with torch.no_grad():
+                    x_real_np = x_real.squeeze(0).permute(1, 2, 0).cpu().numpy()
+                    perturbed_image_np = perturbed_image.squeeze(0).permute(1, 2, 0).cpu().numpy()
+                    invisible_lpips_value = self.lpips_loss(x_real, perturbed_image).mean()
+                    invisible_psnr_value = psnr(x_real_np, perturbed_image_np, data_range=2.0)
+                    invisible_ssim_value = ssim(x_real_np, perturbed_image_np, data_range=2.0, win_size=3, channel_axis=2)
+                    total_invisible_lpips += invisible_lpips_value
+                    total_invisible_psnr += invisible_psnr_value
+                    total_invisible_ssim += invisible_ssim_value
+                    episode += 1
+
+            all_result_lists = [noattack_result_list, jpeg_result_list, opencv_result_list,
+                                median_result_list, padding_result_list, transforms_result_list]
+            row_images = []
+            for result_list in all_result_lists:
+                row_concat = torch.cat(result_list, dim=3)
+                row_images.append(row_concat)
+            spacing = 10
+            blank_image = torch.ones_like(row_images[0][:, :, :spacing, :]) * 1.0
+            vertical_concat_list = [row_images[0]]
+            for i in range(1, len(row_images)):
+                vertical_concat_list.append(blank_image)
+                vertical_concat_list.append(row_images[i])
+            x_concat = torch.cat(vertical_concat_list, dim=2)
+            result_path = os.path.join(result_dir, '{}-images.jpg'.format(infer_img_idx + 1))
+            save_image(self.denorm(x_concat.data.cpu()), result_path, nrow=1, padding=0)
+            print(f"[Random Policy] Result saved: {result_path}")
+
+            if infer_img_idx >= (self.inference_image_num - 1):
+                break
+
+        total_images = infer_img_idx + 1
+        score = print_comprehensive_metrics(results, episode, total_invisible_psnr, total_invisible_ssim,
+                                            total_invisible_lpips, total_images)
+        train_flag = False
+        visualize_actions(action_history, image_indices, attr_indices, step_indices, train_flag)
+        return score
+
+
+    # =========================================================================
+    # Baseline: Greedy Policy
+    # Calibration phase: for each transform type, measure average L2 gain per
+    # action on a small held-out calibration set, then build a per-transform
+    # action ranking.  Inference phase: given the known transform identity,
+    # always pick the best-ranked action (rank-0) at every step.
+    # =========================================================================
+    def _run_calibration(self, calib_loader, calib_image_num):
+        """Run calibration to compute per-transform action rankings.
+
+        For each transform in {jpeg, opencv, median, padding, affine} and for
+        each of the 4 actions, we apply the action once to a fresh perturbation
+        and measure the resulting L2 gain (MSE between original_gen and
+        perturbed_gen after transform).  We average over calib_image_num images
+        and return a dict mapping transform_name -> sorted list of actions
+        (best first, i.e. highest average L2 gain first).
+        """
+        print(f"[Greedy Calibration] Starting calibration on {calib_image_num} images...")
+        calib_attack_func = stargan_attacks.AttackFunction(
+            config=self.config, model=self.G, device=self.device)
+
+        # transform_name -> {action_id -> cumulative L2 gain}
+        transform_names = ["jpeg", "opencv", "median", "padding", "affine"]
+        action_gains = {t: {a: 0.0 for a in range(4)} for t in transform_names}
+        action_counts = {t: {a: 0 for a in range(4)} for t in transform_names}
+
+        calib_count = 0
+        for img_idx, (x_real, c_org, filename) in enumerate(calib_loader):
+            if calib_count >= calib_image_num:
+                break
+            x_real = x_real.to(self.device)
+            c_trg_list = self.create_labels(c_org, self.c_dim, self.dataset, self.selected_attrs)
+
+            # Use only the first attribute to keep calibration fast
+            c_trg = c_trg_list[0].to(self.device)
+
+            with torch.no_grad():
+                original_gen_image, _ = self.G(x_real, c_trg)
+
+            for action in range(4):
+                # Fresh perturbation for each action trial
+                perturbed_image = x_real.clone().detach() + torch.tensor(
+                    np.random.uniform(-0.01, 0.01, x_real.shape).astype('float32')).to(self.device)
+
+                # Apply the candidate action once (gradient required for PGD/freq attacks)
+                if action == 0:
+                    perturbed_image, _ = calib_attack_func.PGD(
+                        perturbed_image, original_gen_image, c_trg)
+                else:
+                    freq_band = ['LOW', 'MID', 'HIGH'][action - 1]
+                    perturbed_image, _ = calib_attack_func.perturb_frequency_domain(
+                        perturbed_image, original_gen_image, c_trg, freq_band=freq_band)
+
+                # Measure L2 gain under each transform
+                with torch.no_grad():
+                    # JPEG
+                    x_adv_jpeg = compress_jpeg(perturbed_image, quality=75)
+                    gen_jpeg, _ = self.G(x_adv_jpeg, c_trg)
+                    l2_jpeg = F.mse_loss(original_gen_image, gen_jpeg).item()
+                    action_gains["jpeg"][action] += l2_jpeg
+                    action_counts["jpeg"][action] += 1
+
+                    # OpenCV denoise
+                    x_adv_opencv = denoise_opencv(perturbed_image)
+                    gen_opencv, _ = self.G(x_adv_opencv, c_trg)
+                    l2_opencv = F.mse_loss(original_gen_image, gen_opencv).item()
+                    action_gains["opencv"][action] += l2_opencv
+                    action_counts["opencv"][action] += 1
+
+                    # Median smoothing
+                    x_adv_median = denoise_scikit(perturbed_image)
+                    gen_median, _ = self.G(x_adv_median, c_trg)
+                    l2_median = F.mse_loss(original_gen_image, gen_median).item()
+                    action_gains["median"][action] += l2_median
+                    action_counts["median"][action] += 1
+
+                    # Resize & padding
+                    _, x_adv_padding = random_resize_padding(x_real, perturbed_image)
+                    x_real_padding, _ = random_resize_padding(x_real, x_real)
+                    orig_gen_padding, _ = self.G(x_real_padding, c_trg)
+                    gen_padding, _ = self.G(x_adv_padding, c_trg)
+                    l2_padding = F.mse_loss(orig_gen_padding, gen_padding).item()
+                    action_gains["padding"][action] += l2_padding
+                    action_counts["padding"][action] += 1
+
+                    # Affine transform
+                    _, x_adv_affine = random_image_transforms(x_real, perturbed_image)
+                    x_real_affine, _ = random_image_transforms(x_real, x_real)
+                    orig_gen_affine, _ = self.G(x_real_affine, c_trg)
+                    gen_affine, _ = self.G(x_adv_affine, c_trg)
+                    l2_affine = F.mse_loss(orig_gen_affine, gen_affine).item()
+                    action_gains["affine"][action] += l2_affine
+                    action_counts["affine"][action] += 1
+
+            calib_count += 1
+            print(f"[Greedy Calibration] Processed {calib_count}/{calib_image_num} images")
+
+        # Compute averages and build rankings (descending L2 gain = best first)
+        rankings = {}
+        for t in transform_names:
+            avg_gains = {a: (action_gains[t][a] / max(action_counts[t][a], 1)) for a in range(4)}
+            sorted_actions = sorted(avg_gains.keys(), key=lambda a: avg_gains[a], reverse=True)
+            rankings[t] = sorted_actions
+            print(f"[Greedy Calibration] Transform '{t}' ranking: {sorted_actions}")
+            print(f"  avg L2 gains: { {a: f'{avg_gains[a]:.6f}' for a in range(4)} }")
+
+        return rankings
+
+
+    def inference_greedy_policy(self, data_loader, result_dir, calib_loader, calib_image_num=50):
+        """Inference using greedy action selection based on calibration-set rankings.
+
+        The transform identity at inference time is assumed to be unknown, so
+        we cycle through all 5 transform-specific rankings in a round-robin
+        fashion across steps (one step per transform type, repeating).  This
+        is the simplest possible greedy strategy that uses per-transform
+        rankings without requiring online transform identification.
+
+        Concretely, at step t we pick the best action for transform
+        transform_order[t % len(transform_order)].
+        """
+        os.makedirs(result_dir, exist_ok=True)
+        self.attack_func = stargan_attacks.AttackFunction(config=self.config, model=self.G, device=self.device)
+
+        # --- Calibration phase ---
+        rankings = self._run_calibration(calib_loader, calib_image_num)
+        # Fixed cycling order of transforms used during inference steps
+        transform_order = ["jpeg", "opencv", "median", "padding", "affine"]
+
+        results = {
+            "원본(변형없음)": {"l1_error": 0.0, "l2_error": 0.0, "defense_psnr": 0.0,
+                        "defense_ssim": 0.0, "defense_lpips": 0.0, "attack_success": 0, "total_remain_map": np.zeros((256, 256))},
+            "JPEG압축": {"l1_error": 0.0, "l2_error": 0.0, "defense_psnr": 0.0,
+                    "defense_ssim": 0.0, "defense_lpips": 0.0, "attack_success": 0, "total_remain_map": np.zeros((256, 256))},
+            "OpenCV디노이즈": {"l1_error": 0.0, "l2_error": 0.0, "defense_psnr": 0.0,
+                        "defense_ssim": 0.0, "defense_lpips": 0.0, "attack_success": 0, "total_remain_map": np.zeros((256, 256))},
+            "중간값스무딩": {"l1_error": 0.0, "l2_error": 0.0, "defense_psnr": 0.0,
+                        "defense_ssim": 0.0, "defense_lpips": 0.0, "attack_success": 0, "total_remain_map": np.zeros((256, 256))},
+            "크기조정패딩": {"l1_error": 0.0, "l2_error": 0.0, "defense_psnr": 0.0,
+                    "defense_ssim": 0.0, "defense_lpips": 0.0, "attack_success": 0, "total_remain_map": np.zeros((256, 256))},
+            "이미지변환": {"l1_error": 0.0, "l2_error": 0.0, "defense_psnr": 0.0,
+                    "defense_ssim": 0.0, "defense_lpips": 0.0, "attack_success": 0, "total_remain_map": np.zeros((256, 256))}
+        }
+        total_invisible_psnr, total_invisible_ssim, total_invisible_lpips = 0.0, 0.0, 0.0
+        episode = 0
+        action_history = []
+        image_indices = []
+        attr_indices = []
+        step_indices = []
+
+        for infer_img_idx, (x_real, c_org, filename) in enumerate(data_loader):
+            x_real = x_real.to(self.device)
+            noattack_result_list = [x_real]
+            jpeg_result_list = [x_real]
+            opencv_result_list = [x_real]
+            median_result_list = [x_real]
+            padding_result_list = [x_real]
+            transforms_result_list = [x_real]
+
+            c_trg_list = self.create_labels(c_org, self.c_dim, self.dataset, self.selected_attrs)
+            for idx, c_trg in enumerate(c_trg_list):
+                c_trg = c_trg.to(self.device)
+                perturbed_image = x_real.clone().detach_() + torch.tensor(
+                    np.random.uniform(-0.01, 0.01, x_real.shape).astype('float32')).to(self.device)
+
+                for step in range(self.max_steps_per_episode):
+                    with torch.no_grad():
+                        original_gen_image, _ = self.G(x_real, c_trg)
+                        perturbed_gen_image, _ = self.G(perturbed_image, c_trg)
+
+                    # ---- Greedy action selection ----
+                    # Cycle through transform types; pick best action for that transform
+                    transform_name = transform_order[step % len(transform_order)]
+                    action = rankings[transform_name][0]  # best action for this transform
+                    print(f"[Greedy Policy] Step {step+1}: transform='{transform_name}', action={action}")
+
+                    action_history.append(action)
+                    image_indices.append(infer_img_idx)
+                    attr_indices.append(idx)
+                    step_indices.append(step)
+
+                    if action == 0:
+                        perturbed_image, _ = self.attack_func.PGD(perturbed_image, original_gen_image, c_trg)
+                    else:
+                        freq_band = ['LOW', 'MID', 'HIGH'][action - 1]
+                        perturbed_image, _ = self.attack_func.perturb_frequency_domain(
+                            perturbed_image, original_gen_image, c_trg, freq_band=freq_band)
+
+                analyzed_perturbation_array = analyze_perturbation(perturbed_image - x_real)
+
+                with torch.no_grad():
+                    remain_perturb_array = analyze_perturbation(perturbed_image - x_real)
+                    results["원본(변형없음)"]["total_remain_map"] += remain_perturb_array
+                    original_gen_image, _ = self.G(x_real, c_trg)
+                    perturbed_gen_image_orig, _ = self.G(perturbed_image, c_trg)
+                    noattack_result_list.append(perturbed_image)
+                    noattack_result_list.append(original_gen_image)
+                    noattack_result_list.append(perturbed_gen_image_orig)
+                    results = calculate_and_save_metrics(original_gen_image, perturbed_gen_image_orig, "원본(변형없음)", results)
+
+                x_adv_jpeg = compress_jpeg(perturbed_image, quality=75)
+                with torch.no_grad():
+                    remain_perturb_array = analyze_perturbation(x_adv_jpeg - x_real)
+                    results["JPEG압축"]["total_remain_map"] += remain_perturb_array
+                    perturbed_gen_image_jpeg, _ = self.G(x_adv_jpeg, c_trg)
+                    jpeg_result_list.append(x_adv_jpeg)
+                    jpeg_result_list.append(original_gen_image)
+                    jpeg_result_list.append(perturbed_gen_image_jpeg)
+                    results = calculate_and_save_metrics(original_gen_image, perturbed_gen_image_jpeg, "JPEG압축", results)
+
+                x_adv_denoise_opencv = denoise_opencv(perturbed_image)
+                with torch.no_grad():
+                    remain_perturb_array = analyze_perturbation(x_adv_denoise_opencv - x_real)
+                    results["OpenCV디노이즈"]["total_remain_map"] += remain_perturb_array
+                    perturbed_gen_image_opencv, _ = self.G(x_adv_denoise_opencv, c_trg)
+                    opencv_result_list.append(x_adv_denoise_opencv)
+                    opencv_result_list.append(original_gen_image)
+                    opencv_result_list.append(perturbed_gen_image_opencv)
+                    results = calculate_and_save_metrics(original_gen_image, perturbed_gen_image_opencv, "OpenCV디노이즈", results)
+
+                x_adv_median = denoise_scikit(perturbed_image)
+                with torch.no_grad():
+                    remain_perturb_array = analyze_perturbation(x_adv_median - x_real)
+                    results["중간값스무딩"]["total_remain_map"] += remain_perturb_array
+                    perturbed_gen_image_median, _ = self.G(x_adv_median, c_trg)
+                    median_result_list.append(x_adv_median)
+                    median_result_list.append(original_gen_image)
+                    median_result_list.append(perturbed_gen_image_median)
+                    results = calculate_and_save_metrics(original_gen_image, perturbed_gen_image_median, "중간값스무딩", results)
+
+                x_real_padding, x_adv_padding = random_resize_padding(x_real, perturbed_image)
+                with torch.no_grad():
+                    remain_perturb_array = analyze_perturbation(x_adv_padding - x_real_padding)
+                    results["크기조정패딩"]["total_remain_map"] += remain_perturb_array
+                    original_gen_image_padding, _ = self.G(x_real_padding, c_trg)
+                    perturbed_gen_image_padding, _ = self.G(x_adv_padding, c_trg)
+                    padding_result_list.append(x_adv_padding)
+                    padding_result_list.append(original_gen_image_padding)
+                    padding_result_list.append(perturbed_gen_image_padding)
+                    results = calculate_and_save_metrics(original_gen_image_padding, perturbed_gen_image_padding, "크기조정패딩", results)
+
+                x_real_transforms, x_adv_transforms = random_image_transforms(x_real, perturbed_image)
+                with torch.no_grad():
+                    remain_perturb_array = analyze_perturbation(x_adv_transforms - x_real_transforms)
+                    results["이미지변환"]["total_remain_map"] += remain_perturb_array
+                    original_gen_image_transforms, _ = self.G(x_real_transforms, c_trg)
+                    perturbed_gen_image_transforms, _ = self.G(x_adv_transforms, c_trg)
+                    transforms_result_list.append(x_adv_transforms)
+                    transforms_result_list.append(original_gen_image_transforms)
+                    transforms_result_list.append(perturbed_gen_image_transforms)
+                    results = calculate_and_save_metrics(original_gen_image_transforms, perturbed_gen_image_transforms, "이미지변환", results)
+
+                with torch.no_grad():
+                    x_real_np = x_real.squeeze(0).permute(1, 2, 0).cpu().numpy()
+                    perturbed_image_np = perturbed_image.squeeze(0).permute(1, 2, 0).cpu().numpy()
+                    invisible_lpips_value = self.lpips_loss(x_real, perturbed_image).mean()
+                    invisible_psnr_value = psnr(x_real_np, perturbed_image_np, data_range=2.0)
+                    invisible_ssim_value = ssim(x_real_np, perturbed_image_np, data_range=2.0, win_size=3, channel_axis=2)
+                    total_invisible_lpips += invisible_lpips_value
+                    total_invisible_psnr += invisible_psnr_value
+                    total_invisible_ssim += invisible_ssim_value
+                    episode += 1
+
+            all_result_lists = [noattack_result_list, jpeg_result_list, opencv_result_list,
+                                median_result_list, padding_result_list, transforms_result_list]
+            row_images = []
+            for result_list in all_result_lists:
+                row_concat = torch.cat(result_list, dim=3)
+                row_images.append(row_concat)
+            spacing = 10
+            blank_image = torch.ones_like(row_images[0][:, :, :spacing, :]) * 1.0
+            vertical_concat_list = [row_images[0]]
+            for i in range(1, len(row_images)):
+                vertical_concat_list.append(blank_image)
+                vertical_concat_list.append(row_images[i])
+            x_concat = torch.cat(vertical_concat_list, dim=2)
+            result_path = os.path.join(result_dir, '{}-images.jpg'.format(infer_img_idx + 1))
+            save_image(self.denorm(x_concat.data.cpu()), result_path, nrow=1, padding=0)
+            print(f"[Greedy Policy] Result saved: {result_path}")
+
+            if infer_img_idx >= (self.inference_image_num - 1):
+                break
+
+        total_images = infer_img_idx + 1
+        score = print_comprehensive_metrics(results, episode, total_invisible_psnr, total_invisible_ssim,
+                                            total_invisible_lpips, total_images)
+        train_flag = False
+        visualize_actions(action_history, image_indices, attr_indices, step_indices, train_flag)
+        return score
+
+
     def build_model(self):
         self.G = Generator(self.g_conv_dim, self.c_dim, self.g_repeat_num)
         self.D = Discriminator(self.image_size, self.d_conv_dim, self.c_dim, self.d_repeat_num)
