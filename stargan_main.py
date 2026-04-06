@@ -1,4 +1,3 @@
-import neptune
 import os
 import argparse
 from dotenv import load_dotenv
@@ -19,10 +18,6 @@ def main(config):
 
     # For fast training
     cudnn.benchmark = True
-    run = neptune.init_run(
-        project=os.getenv("NEPTUNE_PROJECT"),
-        api_token=os.getenv("NEPTUNE_API_TOKEN"),
-    )
 
 
     if not os.path.exists(config.log_dir):
@@ -53,10 +48,7 @@ def main(config):
                                 'MAADFace', config.mode, config.num_workers, config.start_index)
 
 
-    solver = SolverRainbow(dataset_loader, config, run = run)
-    print("[NEPTUNE DEBUG] solver.run is None?:", solver.run is None)
-    print("[NEPTUNE DEBUG] solver.run obj:", getattr(solver, "run", None))
-    print("[NEPTUNE DEBUG] solver.run url (if available):", getattr(solver.run, "get_url", lambda: "no-get-url")())
+    solver = SolverRainbow(dataset_loader, config)
 
 
     if config.mode == 'train':

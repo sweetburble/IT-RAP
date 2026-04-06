@@ -28,7 +28,7 @@ Run the following commands in your terminal:
 git clone https://github.com/sweetburble/IT-RAP
 cd IT-RAP
 uv init --python 3.12
-uv add ellzaf-ml
+uv add -r requirements.txt
 ```
 
 ### GPU Support (Optional)
@@ -43,36 +43,32 @@ For example, if you're using CUDA 12.6:
 
 ```bash
 uv pip uninstall torch torchvision
-uv pip install torch torchvision --index-url https://download.pytorch.org/whl/cu126
+```
+
+and add phrase to pyproject.toml
+
+```
+[[tool.uv.index]]
+name = "pytorch"
+url = "https://download.pytorch.org/whl/cu126"
+explicit = true
+
+[tool.uv.sources]
+clip = { git = "https://github.com/openai/CLIP.git" }
+torch = { index = "pytorch" }
+torchvision = { index = "pytorch" }
+```
+
+finally, run
+
+```bash
+uv sync
 ```
 
 **Note:** CUDA 12.1 and 11.8 builds are also available. Match your installation to your CUDA version:
 
--   CUDA 12.2 → install CUDA 12.1 build
--   CUDA 11.9 → install CUDA 11.8 build
-
-The CPU version is automatically installed as a dependency of `ellzaf-ml`.
-
-### Install Additional Dependencies
-
-Install the remaining Python packages using the same method:
-
-```bash
-uv add scikit-image
-uv add torchmetrics
-uv add face_alignment
-uv add pandas
-uv add torch_dct
-uv add scikit-learn
-uv add seaborn
-uv add h5py
-uv add PyWavelets
-uv add neptune
-uv add lmdb
-uv add dlib
-uv install git+https://github.com/openai/CLIP.git
-uv add python-dotenv
-```
+- CUDA 12.2 → install CUDA 12.1 build
+- CUDA 11.9 → install CUDA 11.8 build
 
 ## Datasets and Models
 
@@ -94,17 +90,17 @@ Follow instruction in the [MAAD-Face official repository](https://github.com/pte
 **AttGAN Model**
 Follow instruction in the [AttGAN official repository](https://github.com/elvisyjlin/AttGAN-PyTorch) for downloading their model.
 
--   AttGAN Pretrained Checkpoint (256_shortcut1_inject1_none_hq) This repository uses a pretrained AttGAN checkpoint named **`256_shortcut1_inject1_none_hq`**. You can download the required weights from the Google Drive folder linked below and place the checkpoint file in your project's checkpoint directory before running training or inference.
--   Download Link
-    [Google Drive folder containing the checkpoint(s)](https://drive.google.com/drive/folders/1JMQ-gtI4rmdkmnPSIHw0cMGRBRa2Hw1z?usp=sharing)
+- AttGAN Pretrained Checkpoint (256_shortcut1_inject1_none_hq) This repository uses a pretrained AttGAN checkpoint named **`256_shortcut1_inject1_none_hq`**. You can download the required weights from the Google Drive folder linked below and place the checkpoint file in your project's checkpoint directory before running training or inference.
+- Download Link
+  [Google Drive folder containing the checkpoint(s)](https://drive.google.com/drive/folders/1JMQ-gtI4rmdkmnPSIHw0cMGRBRa2Hw1z?usp=sharing)
 
 **DiffusionCLIP Model**
 
 The checkpoint files required to run the code can be downloaded from the link below.
 Please place the downloaded files in the following directory: `./DiffusionCLIP/checkpoint/`
 
--   Download Link
-    [Google Drive folder containing the checkpoint(s)](https://drive.google.com/drive/folders/1QhsWtqK5ZTjk58Bp9EcP_FFPbLQDLNk5?usp=sharing)
+- Download Link
+  [Google Drive folder containing the checkpoint(s)](https://drive.google.com/drive/folders/1QhsWtqK5ZTjk58Bp9EcP_FFPbLQDLNk5?usp=sharing)
 
 ## Attack Training
 
@@ -147,7 +143,7 @@ This method trains the **StarGAN** model using the CelebA dataset. Run `[CelebA]
 
 **Setup:**
 
--   Ensure the execution file is `stargan_main.py`.
+- Ensure the execution file is `stargan_main.py`.
 
 ```python
 # [CelebA] train_entry_point.py
@@ -174,7 +170,7 @@ This method trains the **AttGAN** model using the CelebA dataset. Run `[CelebA] 
 
 **Setup:**
 
--   Ensure the execution file is `attgan_main.py`.
+- Ensure the execution file is `attgan_main.py`.
 
 ```python
 # [CelebA] train_entry_point.py
@@ -201,7 +197,7 @@ This method trains the **StarGAN** model using the MAAD-Face dataset. Run `[MAAD
 
 **Setup:**
 
--   Ensure the execution file is `stargan_main.py`.
+- Ensure the execution file is `stargan_main.py`.
 
 ```python
 os.system(
@@ -230,7 +226,7 @@ This method trains the **StarGAN** model using the MAAD-Face dataset. Run `[MAAD
 
 **Setup:**
 
--   Ensure the execution file is `attgan_main.py`.
+- Ensure the execution file is `attgan_main.py`.
 
 ```python
 os.system(
@@ -278,7 +274,7 @@ If you want to run it for AttGAN instead of StarGAN, simply replace the `"python
 
 Before proceeding with inference, you need the pre-trained weight file for the Rainbow DQN model. This file must be located at the following path:
 
--   **Weight Path:** `checkpoints/models/final_rainbow_dqn.pth`
+- **Weight Path:** `checkpoints/models/final_rainbow_dqn.pth`
 
 <br>
 
@@ -294,7 +290,7 @@ Runs inference using the **StarGAN** model and the **CelebA** dataset.
 
 **Setup:**
 
--   Ensure the execution file is `stargan_main.py`.
+- Ensure the execution file is `stargan_main.py`.
 
 ```python
 # [CelebA] infer_entry_point.py
@@ -325,7 +321,7 @@ Runs inference using the **AttGAN** model and the **CelebA** dataset.
 
 **Setup:**
 
--   Ensure the execution file is `attgan_main.py`.
+- Ensure the execution file is `attgan_main.py`.
 
 ```python
 # [CelebA] infer_entry_point.py
@@ -356,7 +352,7 @@ Runs inference using the **StarGAN** model and the **MAAD-Face** dataset.
 
 **Setup:**
 
--   Ensure the execution file is `stargan_main.py`.
+- Ensure the execution file is `stargan_main.py`.
 
 ```python
 # [MAADFace] infer_entry_point.py
@@ -383,7 +379,7 @@ Runs inference using the **AttGAN** model and the **MAAD-Face** dataset.
 
 **Setup:**
 
--   Ensure the execution file is `attgan_main.py`.
+- Ensure the execution file is `attgan_main.py`.
 
 ```python
 # [MAADFace] infer_entry_point.py
@@ -480,9 +476,9 @@ For comparison of results by Dataset and comparison of results by Deepfake model
 
 Our work, IT-RAP, builds upon previous research focused on creating adversarial perturbations to defend against deepfake models. Below are some of the key studies that inspired our approach:
 
--   **[Disrupting Deepfakes (Ruiz et al., 2020)](https://github.com/natanielruiz/disrupting-deepfakes)**: This work introduced a PGD-based spatial domain attack to protect images from unauthorized manipulation. However, as noted in our research, these perturbations are often vulnerable to common image transformations, a challenge that our IT-RAP framework directly addresses.
+- **[Disrupting Deepfakes (Ruiz et al., 2020)](https://github.com/natanielruiz/disrupting-deepfakes)**: This work introduced a PGD-based spatial domain attack to protect images from unauthorized manipulation. However, as noted in our research, these perturbations are often vulnerable to common image transformations, a challenge that our IT-RAP framework directly addresses.
 
--   **[DF-RAP (Qu et al., 2024)](https://github.com/ZOMIN28/DF_RAP)**: This study highlighted that adversarial perturbations can be significantly weakened by lossy compression, such as that used by online social networks. It underscores the importance of creating perturbations that are robust not just to simple transformations but also to compression artifacts, which is a key goal of our project.
+- **[DF-RAP (Qu et al., 2024)](https://github.com/ZOMIN28/DF_RAP)**: This study highlighted that adversarial perturbations can be significantly weakened by lossy compression, such as that used by online social networks. It underscores the importance of creating perturbations that are robust not just to simple transformations but also to compression artifacts, which is a key goal of our project.
 
 ## Acknowledges
 
@@ -490,10 +486,10 @@ Our work is based on:
 
 **[Deepfake model]**
 
--   [StarGAN](https://github.com/yunjey/stargan)
--   [AttGAN](https://github.com/elvisyjlin/AttGAN-PyTorch)
+- [StarGAN](https://github.com/yunjey/stargan)
+- [AttGAN](https://github.com/elvisyjlin/AttGAN-PyTorch)
 
 **[Adversarial Perturbation]**
 
--   [Disrupting Deepfakes](https://github.com/natanielruiz/disrupting-deepfakes)
--   [DF-RAP](https://github.com/ZOMIN28/DF_RAP)
+- [Disrupting Deepfakes](https://github.com/natanielruiz/disrupting-deepfakes)
+- [DF-RAP](https://github.com/ZOMIN28/DF_RAP)

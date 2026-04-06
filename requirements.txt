@@ -1,22 +1,25 @@
-torch==1.12.1+cpu
-torchvision==0.13.1+cpu
-torchaudio==0.12.1
--f https://download.pytorch.org/whl/torch_stable.html
-numpy==1.24.4
-scipy>=1.8.0
-pandas>=1.5.3
-matplotlib>=3.7.1
-seaborn>=0.12.2
-scikit-learn>=1.2.2
-scikit-image>=0.19.3
-PyWavelets>=1.4.1
-torchmetrics>=0.11.4
-lpips==0.1.4
-opencv-python>=4.7.0.72
-Pillow>=8.4.0
-torch-dct>=0.1.6
-optuna>=3.0.0
-neptune-client==1.14.0
-h5py>=3.9.0
-sympy==1.14.0
-face-alignment==1.4.1
+# PyTorch 및 관련 패키지 (추후, pyproject.toml을 수정하면 CUDA 버전으로 변경 가능)
+torch
+torchvision
+
+# 데이터 과학 및 머신러닝 패키지
+scikit-image
+torchmetrics
+lpips
+face_alignment
+pandas
+torch_dct
+scikit-learn
+seaborn
+h5py
+PyWavelets
+lmdb
+dlib
+munch
+timm
+
+# Git 저장소에서 직접 설치하는 패키지
+git+https://github.com/openai/CLIP.git
+
+# 환경 변수 관리 패키지
+python-dotenv

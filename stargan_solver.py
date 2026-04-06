@@ -240,9 +240,8 @@ class PrioritizedReplayBuffer(object):
 class SolverRainbow(object):
 
 
-    def __init__(self, dataset_loader, config, run = None):
+    def __init__(self, dataset_loader, config):
         self.config = config
-        self.run = run
 
 
         self.dataset_loader = dataset_loader
@@ -1109,15 +1108,6 @@ class SolverRainbow(object):
                     reward, defense_l1_loss, defense_l2_loss, defense_lpips, invisibility_ssim, invisibility_psnr, invisibility_lpips = self.calculate_reward(original_gen_image, perturbed_gen_image, x_real, perturbed_image, c_trg)
 
 
-                    if self.run is not None:
-                        self.run["train/reward"].append(float(reward))
-                        self.run["train/L1"].append(float(defense_l1_loss))
-                        self.run["train/L2"].append(float(defense_l2_loss))
-                        self.run["train/PSNR"].append(float(invisibility_psnr))
-                        self.run["train/LPIPS"].append(float(invisibility_lpips))
-                        self.run["train/SSIM"].append(float(invisibility_ssim))
-
-
                     if isinstance(reward, torch.Tensor):
                         total_reward_this_episode += reward.item()
                     else:
@@ -1318,10 +1308,6 @@ class SolverRainbow(object):
         except Exception as e:
             print(f"[!] Error saving Rainbow DQN agent weights and optimizer weights: {e}")
         print(f"[INFO] Finished saving Rainbow DQN agent weights and optimizer weights: {checkpoint_path}")
-
-
-        if self.run is not None:
-            self.run.stop()
 
 
     """Helper function to create an N-step transition"""

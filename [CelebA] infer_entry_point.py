@@ -9,7 +9,7 @@ for i in range(1, num_runs + 1):
     with open(output_file, "w", encoding='utf-8') as f:
         process = subprocess.Popen(
             [
-                "python", "attgan_main.py",     # if using StarGAN, change to "stargan_main.py"
+                "python", "stargan_main.py",     # if using StarGAN, change to "stargan_main.py"
                 "--mode", "inference",
                 "--dataset", "CelebA",
                 "--inference_image_num", "100",
