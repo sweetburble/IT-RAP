@@ -9,7 +9,7 @@ for i in range(1, num_runs + 1):
     with open(output_file, "w", encoding='utf-8') as f:
         process = subprocess.Popen(
             [
-                "python", "stargan_main.py",     # if using StarGAN, change to "stargan_main.py"
+                "python", "stargan_main.py", # if using StarGAN, change to "stargan_main.py"
                 "--mode", "inference",
                 "--dataset", "CelebA",
                 "--inference_image_num", "100",
@@ -18,7 +18,7 @@ for i in range(1, num_runs + 1):
                 "--selected_attrs", "Black_Hair", "Blond_Hair", "Brown_Hair", "Male", "Young",
                 "--images_dir", "data/celeba/images",
                 "--attr_path", "data/celeba/list_attr_celeba.txt",
-                "--model_save_dir", "checkpoints/models",
+                "--model_save_dir", "stargan_celeba_256/models",
                 "--result_dir", "result_inference",
                 "--test_iters", "200000",
                 "--max_steps_per_episode", "18",

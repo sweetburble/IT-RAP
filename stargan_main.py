@@ -47,25 +47,19 @@ def main(config):
                                 config.celeba_crop_size, config.image_size, config.batch_size,
                                 'MAADFace', config.mode, config.num_workers, config.start_index)
 
-
     solver = SolverRainbow(dataset_loader, config)
 
-
     if config.mode == 'train':
-        solver.train_attack()
-
-
+        solver.train_attack(use_extended_bands=True, use_extended_noise=False)
     elif config.mode == 'inference':
         if config.attack_method != 'cmua':
-
             checkpoint_path = os.path.join(config.model_save_dir, f'final_rainbow_dqn.pth')
             solver.load_rainbow_dqn_checkpoint(checkpoint_path)
 
             solver.restore_model(config.test_iters)
 
-            solver.inference_rainbow_dqn(dataset_loader, result_dir=config.result_dir)
-        if config.attack_method == 'cmua':
-
+            solver.inference_rainbow_dqn(dataset_loader, result_dir=config.result_dir, use_extended_bands=True, use_extended_noise=False)
+        elif config.attack_method == 'cmua':
             solver.restore_model(config.test_iters)
             if config.cmua_mode == 'train':
                 solver.train_cmua(dataset_loader, result_dir=config.result_dir)
@@ -76,14 +70,10 @@ def main(config):
                 print(f"[ERROR] Unknown cmua_mode: {config.cmua_mode}")
                 print("[INFO] Use --cmua_mode train or --cmua_mode inference")
                 return
-        else:
-            print(f"[ERROR] Unknown attack method: {config.attack_method}")
-            return
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-
 
     parser.add_argument('--c_dim', type=int, default=5, help='dimension of domain labels (1st dataset)')
     parser.add_argument('--c2_dim', type=int, default=8, help='dimension of domain labels (2nd dataset)')

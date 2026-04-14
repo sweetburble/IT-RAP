@@ -10,8 +10,8 @@ import random
 import math
 import gc
 import time
+import itertools
 from torchvision import transforms
-import sys
 
 from torchvision.models import vgg19, resnet50, VGG19_Weights, ResNet50_Weights
 from torch.nn.utils import clip_grad_norm_
@@ -320,11 +320,15 @@ class SolverRainbow(object):
         self.build_rlab_agent()
 
 
-    def inference_rainbow_dqn(self, data_loader, result_dir):
-        os.makedirs(result_dir, exist_ok=True)
-        self.attack_func = attgan_attacks.AttackFunction(config=self.config, model=attgan_model.G, device=self.device)
-        self.rl_agent.dqn.eval()
+    def inference_rainbow_dqn(self, data_loader, result_dir, use_extended_bands=False, use_extended_noise=True):
+        torch.cuda.empty_cache()
+        gc.collect()
 
+        os.makedirs(result_dir, exist_ok=True)
+
+        attack_func = attgan_attacks.AttackFunction(config=self.config, model=attgan_model.G, device=self.device, use_extended_bands=use_extended_bands)
+
+        self.rl_agent.dqn.eval()
 
         self.attgan_attrs = [
             'Bald', 'Bangs', 'Black_Hair', 'Blond_Hair', 'Brown_Hair', 'Bushy_Eyebrows',
@@ -332,8 +336,6 @@ class SolverRainbow(object):
         ]
 
         total_perturbation_map = np.zeros((256, 256))
-        total_remain_map = np.zeros((256, 256))
-
 
         results = {
             "원본(변형없음)": {"l1_error": 0.0, "l2_error": 0.0, "defense_psnr": 0.0,
@@ -353,16 +355,13 @@ class SolverRainbow(object):
 
         episode = 0
 
-
         action_history = []
         image_indices = []
         attr_indices = []
         step_indices = []
 
-
         total_core_time = 0.0
         total_processing_time = 0.0
-
 
         total_generator_time = 0.0
         total_feature_extraction_time = 0.0
@@ -372,11 +371,21 @@ class SolverRainbow(object):
         total_feature_extractions = 0
         total_feature_cache_hits = 0
 
+        # 동적 Action Space 생성
+        # 1. 밴드 확장 여부에 따른 Attack 종류 구성
+        attack_types = ['PGD', 'LOWEST', 'LOW', 'MID', 'HIGH', 'HIGHEST'] if use_extended_bands else ['PGD', 'LOW', 'MID', 'HIGH']
+        # 2. 노이즈 확장 여부에 따른 Noise Level 구성
+        noise_levels = [0.001, 0.005, 0.01] if use_extended_noise else [self.noise_level]
+        
+        # 3. itertools.product를 사용하여 가능한 모든 조합의 리스트 생성
+        # 예: [('PGD', 0.001), ('PGD', 0.005), ..., ('HIGHEST', 0.01)]
+        action_space = list(itertools.product(attack_types, noise_levels))
+        print(f"[*] Current Action Space Dimension: {len(action_space)}")
+
         for infer_img_idx, (x_real, c_org, filename) in enumerate(data_loader):
             total_start_time = time.time()
+
             image_core_time = 0.0
-
-
             image_generator_time = 0.0
             image_feature_extraction_time = 0.0
             image_feature_cached_time = 0.0
@@ -387,7 +396,6 @@ class SolverRainbow(object):
 
             x_real = x_real.to(self.device)
             c_org = c_org.to(self.device)
-
 
             noattack_result_list = [x_real]
             jpeg_result_list = [x_real]
@@ -400,16 +408,13 @@ class SolverRainbow(object):
                 print("=" * 100)
                 print(f"Target Attribute ({idx + 1}/{len(self.selected_attrs)}): {attr_name}")
 
-
                 c_trg = c_org.clone()
-
 
                 try:
                     attr_index = self.attgan_attrs.index(attr_name)
                 except ValueError:
                     print(f"Warning: '{attr_name}' is not a default AttGAN attribute. Skipping this attribute.")
                     continue
-
 
                 c_trg[:, attr_index] = 1 - c_trg[:, attr_index]
 
@@ -419,88 +424,53 @@ class SolverRainbow(object):
                 self.cached_state = None
 
                 for step in range(self.max_steps_per_episode):
-
                     self.step_counter += 1
+
                     core_start_time = time.time()
-
-
                     gen_start_time = time.time()
+
                     with torch.no_grad():
                         original_gen_image = attgan_model.G(x_real, c_trg, mode='enc-dec')
                         perturbed_gen_image = attgan_model.G(perturbed_image, c_trg, mode='enc-dec')
-                    if torch.cuda.is_available():
-                        torch.cuda.synchronize()
-                    gen_end_time = time.time()
-                    step_generator_time = gen_end_time - gen_start_time
 
-
-                    feat_start_time = time.time()
                     state, is_cached = self.get_state(perturbed_image, perturbed_gen_image)
-                    if torch.cuda.is_available():
-                        torch.cuda.synchronize()
-                    feat_end_time = time.time()
-                    step_feature_time = feat_end_time - feat_start_time
 
-
-                    action_start_time = time.time()
                     with torch.no_grad():
-                        action = self.rl_agent.select_action(state).item()
-                    if torch.cuda.is_available():
-                        torch.cuda.synchronize()
-                    action_end_time = time.time()
-                    step_action_time = action_end_time - action_start_time
-                    print(f"[Inference] Selected action: {action}")
+                        action = self.rl_agent.select_action(state)
+                        action_idx = action.item() # Tensor를 int형으로 변환
 
-                    action_history.append(int(action))
+                    print(f"[Inference] Selected action: {action_idx}")
+
+                    action_history.append(action_idx)
                     image_indices.append(infer_img_idx)
                     attr_indices.append(idx)
                     step_indices.append(step)
 
-
                     attack_start_time = time.time()
-                    if action == 0:
-                        perturbed_image, _ = self.attack_func.PGD(perturbed_image, original_gen_image, c_trg)
-                        attack_type = "PGD"
+
+                    # 동적 Action 맵핑에서 현재 선택된 Action을 가져오기
+                    selected_attack, current_noise = action_space[action_idx]
+
+                    # 분기문을 확 줄여서 처리
+                    if selected_attack == 'PGD':
+                        perturbed_image, _ = attack_func.PGD(
+                            perturbed_image, original_gen_image, c_trg, 
+                            current_noise_level=current_noise
+                        )
                     else:
-                        freq_band = ['LOW', 'MID', 'HIGH'][action - 1]
-                        perturbed_image, _ = self.attack_func.perturb_frequency_domain(perturbed_image, original_gen_image, c_trg, freq_band=freq_band)
-                        attack_type = f"Freq-{freq_band}"
-                    if torch.cuda.is_available():
-                        torch.cuda.synchronize()
-                    attack_end_time = time.time()
-                    step_attack_time = attack_end_time - attack_start_time
-
-                    if torch.cuda.is_available():
-                        torch.cuda.synchronize()
-                    core_end_time = time.time()
-                    step_core_time = core_end_time - core_start_time
-                    image_core_time += step_core_time
-
-
-                    image_generator_time += step_generator_time
-                    image_action_selection_time += step_action_time
-                    image_attack_execution_time += step_attack_time
-
-                    if is_cached:
-                        image_feature_cached_time += step_feature_time
-                        image_feature_cache_hits += 1
-                    else:
-                        image_feature_extraction_time += step_feature_time
-                        image_feature_extractions += 1
-
-
-                    print(f"[Core Processing Time] Step {step + 1} processing time: {step_core_time:.5f}s")
-
+                        perturbed_image, _ = attack_func.perturb_frequency_domain(
+                            perturbed_image, original_gen_image, c_trg, 
+                            freq_band=selected_attack, current_noise_level=current_noise
+                        )
 
                     cache_status = "cached" if is_cached else "extracted"
-                    print(f"  ├─ Generator forward: {step_generator_time:.5f}s")
-                    print(f"  ├─ Feature extraction: {step_feature_time:.5f}s ({cache_status})")
-                    print(f"  ├─ Action selection: {step_action_time:.5f}s")
-                    print(f"  └─ Attack execution: {step_attack_time:.5f}s ({attack_type})")
+                    # print(f"  ├─ Generator forward: {step_generator_time:.5f}s")
+                    # print(f"  ├─ Feature extraction: {step_feature_time:.5f}s ({cache_status})")
+                    # print(f"  ├─ Action selection: {step_action_time:.5f}s")
+                    # print(f"  └─ Attack execution: {step_attack_time:.5f}s ({attack_types})")
 
                 analyzed_perturbation_array = analyze_perturbation(perturbed_image - x_real)
                 total_perturbation_map += analyzed_perturbation_array
-
 
                 with torch.no_grad():
                     remain_perturb_array = analyze_perturbation(perturbed_image - x_real)
@@ -591,6 +561,7 @@ class SolverRainbow(object):
             spacing = 10
             blank_image = torch.ones_like(row_images[0][:, :, :spacing, :]) * 1.0
             vertical_concat_list = [row_images[0]]
+
             for i in range(1, len(row_images)):
                 vertical_concat_list.append(blank_image)
                 vertical_concat_list.append(row_images[i])
@@ -598,15 +569,9 @@ class SolverRainbow(object):
             x_concat = torch.cat(vertical_concat_list, dim=2)
             result_path = os.path.join(result_dir, '{}-images.jpg'.format(infer_img_idx + 1))
             save_image(self.denorm(x_concat.data.cpu()), result_path, nrow=1, padding=0)
-            print(f"[Inference] Result saved: {result_path}")
-
-            if torch.cuda.is_available():
-                torch.cuda.synchronize()
-            total_end_time = time.time()
-            total_elapsed_time = total_end_time - total_start_time
+            print(f"[Inference] Result saving complete: {result_path}")
 
             total_core_time += image_core_time
-            total_processing_time += total_elapsed_time
             total_generator_time += image_generator_time
             total_feature_extraction_time += image_feature_extraction_time
             total_feature_cached_time += image_feature_cached_time
@@ -615,8 +580,8 @@ class SolverRainbow(object):
             total_feature_extractions += image_feature_extractions
             total_feature_cache_hits += image_feature_cache_hits
 
+
             print(f"[Core Processing Time] Image {infer_img_idx + 1} core processing time: {image_core_time:.5f}s")
-            print(f"[Total Processing Time] Image {infer_img_idx + 1} total processing time: {total_elapsed_time:.5f}s (for reference)")
 
 
             print(f"\n[Detailed Time Summary] Image {infer_img_idx + 1}:")
@@ -635,63 +600,28 @@ class SolverRainbow(object):
             if infer_img_idx >= (self.inference_image_num - 1):
                 break
 
-        score = print_comprehensive_metrics(results, episode, total_invisible_psnr, total_invisible_ssim, total_invisible_lpips)
-        train_flag = False
-        visualize_actions(action_history, image_indices, attr_indices, step_indices, train_flag)
+        total_images = infer_img_idx + 1
+        score = print_comprehensive_metrics(results, episode, total_invisible_psnr, total_invisible_ssim, total_invisible_lpips,total_images)
 
+        # 모든 에피소드가 끝난 후 시각화 함수를 호출하기 직전에 동적 액션 이름을 생성
+        # action_space: itertools.product로 만든 변수
+        dynamic_action_names = []
+        for attack, noise in action_space:
+            if use_extended_noise:
+                # 노이즈 확장을 사용할 경우 이름에 노이즈 레벨 표시 (예: PGD(0.001), LOW(0.01))
+                dynamic_action_names.append(f"{attack}({noise})")
+            else:
+                # 주파수 확장만 사용할 경우 심플하게 표시
+                dynamic_action_names.append(f"{attack}")
 
-        print(f"\n{'='*80}")
-        print(f"[Inference Complete] Total core processing time: {total_core_time:.5f}s")
-        print(f"[Inference Complete] Total processing time (for reference): {total_processing_time:.5f}s")
-        print(f"[Inference Complete] Average core processing time: {total_core_time / episode:.5f}s (Total {episode} processed)")
-        print(f"[Inference Complete] Average total processing time (for reference): {total_processing_time / episode:.5f}s (Total {episode} processed)")
-
-
-        print(f"\n{'='*80}")
-        print(f"[Detailed Time Statistics] Total Inference Summary")
-        print(f"{'='*80}")
-        print(f"\n1. Total Time Breakdown:")
-        print(f"   Generator forward:     {total_generator_time:.5f}s ({total_generator_time/total_core_time*100:.1f}%)")
-        print(f"   Feature extraction:    {total_feature_extraction_time:.5f}s ({total_feature_extractions} extractions)")
-        print(f"   Feature cached:        {total_feature_cached_time:.5f}s ({total_feature_cache_hits} cache hits)")
-        total_all_feature_time = total_feature_extraction_time + total_feature_cached_time
-        print(f"   Total feature time:    {total_all_feature_time:.5f}s ({total_all_feature_time/total_core_time*100:.1f}%)")
-        print(f"   Action selection:      {total_action_selection_time:.5f}s ({total_action_selection_time/total_core_time*100:.1f}%)")
-        print(f"   Attack execution:      {total_attack_execution_time:.5f}s ({total_attack_execution_time/total_core_time*100:.1f}%)")
-
-        print(f"\n2. Average Time per Image:")
-        print(f"   Generator forward:     {total_generator_time/episode:.5f}s")
-        print(f"   Feature extraction:    {total_feature_extraction_time/episode:.5f}s")
-        print(f"   Feature cached:        {total_feature_cached_time/episode:.5f}s")
-        print(f"   Total feature time:    {total_all_feature_time/episode:.5f}s")
-        print(f"   Action selection:      {total_action_selection_time/episode:.5f}s")
-        print(f"   Attack execution:      {total_attack_execution_time/episode:.5f}s")
-
-        print(f"\n3. Feature Extraction Statistics:")
-        print(f"   Total feature calls:   {total_feature_extractions + total_feature_cache_hits}")
-        print(f"   Actual extractions:    {total_feature_extractions}")
-        print(f"   Cache hits:            {total_feature_cache_hits}")
-        if total_feature_extractions + total_feature_cache_hits > 0:
-            overall_cache_hit_rate = total_feature_cache_hits / (total_feature_extractions + total_feature_cache_hits) * 100
-            print(f"   Cache hit rate:        {overall_cache_hit_rate:.1f}%")
-            if total_feature_extractions > 0:
-                avg_extraction_time = total_feature_extraction_time / total_feature_extractions
-                print(f"   Avg extraction time:   {avg_extraction_time:.5f}s")
-            if total_feature_cache_hits > 0:
-                avg_cached_time = total_feature_cached_time / total_feature_cache_hits
-                print(f"   Avg cached time:       {avg_cached_time:.5f}s")
-                if total_feature_extractions > 0:
-                    speedup = avg_extraction_time / avg_cached_time
-                    print(f"   Cache speedup:         {speedup:.2f}x")
-
-        print(f"\n4. Configuration:")
-        print(f"   Feature extractor:     {self.feature_extractor_name}")
-        print(f"   Extractor frequency:   {self.feature_extractor_frequency}")
-        print(f"   Max steps per episode: {self.max_steps_per_episode}")
-        print(f"   Number of images:      {episode}")
-        print(f"{'='*80}\n")
-
-        return score
+        visualize_actions(
+            action_history=action_history, 
+            image_indices=image_indices, 
+            attr_indices=attr_indices, 
+            step_indices=step_indices,
+            action_names=dynamic_action_names,
+            train_flag=False
+        )
 
 
     def load_rainbow_dqn_checkpoint(self, checkpoint_path):
@@ -936,11 +866,10 @@ class SolverRainbow(object):
 
 
     """Performs the RLAB attack (Rainbow DQN Agent)"""
-    def train_attack(self):
+    def train_attack(self, use_extended_bands=False, use_extended_noise=False):
         torch.cuda.empty_cache()
         torch.autograd.set_detect_anomaly(True)
         gc.collect()
-
 
         self.attgan_attrs = [
             'Bald', 'Bangs', 'Black_Hair', 'Blond_Hair', 'Brown_Hair', 'Bushy_Eyebrows',
@@ -948,18 +877,13 @@ class SolverRainbow(object):
         ]
 
         total_perturbation_map = np.zeros((256, 256))
-        total_remain_map = np.zeros((256, 256))
-
 
         checkpoint_path = os.path.join(self.model_save_dir, f'final_rainbow_dqn.pth')
         self.load_rainbow_dqn_checkpoint(checkpoint_path)
 
-
         self.restore_model(self.test_iters)
 
-
         data_loader = self.dataset_loader
-
 
         results = {
             "Original(No Transform)": {"l1_error": 0.0, "l2_error": 0.0, "defense_psnr": 0.0,
@@ -976,11 +900,9 @@ class SolverRainbow(object):
                     "defense_ssim": 0.0, "defense_lpips": 0.0, "attack_success": 0, "total_remain_map": np.zeros((256, 256))}
         }
 
-
         total_invisible_psnr, total_invisible_ssim, total_invisible_lpips = 0.0, 0.0, 0.0
         episode = 0
         frame_idx = 0
-
 
         action_history = []
         image_indices = []
@@ -988,21 +910,27 @@ class SolverRainbow(object):
         step_indices = []
         reward_per_episode = []
 
+        # 동적 Action Space 생성
+        # 1. 밴드 확장 여부에 따른 Attack 종류 구성
+        attack_types = ['PGD', 'LOWEST', 'LOW', 'MID', 'HIGH', 'HIGHEST'] if use_extended_bands else ['PGD', 'LOW', 'MID', 'HIGH']
+        # 2. 노이즈 확장 여부에 따른 Noise Level 구성
+        noise_levels = [0.001, 0.005, 0.01] if use_extended_noise else [self.noise_level]
+        
+        # 3. itertools.product를 사용하여 가능한 모든 조합의 리스트 생성
+        # 예: [('PGD', 0.001), ('PGD', 0.005), ..., ('HIGHEST', 0.01)]
+        action_space = list(itertools.product(attack_types, noise_levels))
+        print(f"[*] Current Action Space Dimension: {len(action_space)}")
 
         for test_img_idx, (x_real, c_org, filename) in enumerate(data_loader):
             print('\n'*3)
             print(f"Image index: {test_img_idx+1}-th image")
             print(f"Processing image filename={filename}")
 
-
             x_real = x_real.to(self.device)
-
 
             c_org = c_org.to(self.device)
 
-
-            attack_func = attgan_attacks.AttackFunction(config=self.config, model=attgan_model.G, device=self.device)
-
+            attack_func = attgan_attacks.AttackFunction(config=self.config, model=attgan_model.G, device=self.device, use_extended_bands=use_extended_bands)
 
             noattack_result_list = [x_real]
             jpeg_result_list = [x_real]
@@ -1011,15 +939,11 @@ class SolverRainbow(object):
             padding_result_list = [x_real]
             transforms_result_list = [x_real]
 
-
             for idx, attr_name  in enumerate(self.selected_attrs):
                 print("=" * 100)
-
                 print(f"Target Attribute ({idx + 1}/{len(self.selected_attrs)}): {attr_name}")
 
-
                 c_trg = c_org.clone()
-
 
                 try:
                     attr_index = self.attgan_attrs.index(attr_name)
@@ -1027,12 +951,9 @@ class SolverRainbow(object):
                     print(f"Warning: '{attr_name}' is not a default attribute of AttGAN. Skipping this attribute.")
                     continue
 
-
                 c_trg[:, attr_index] = 1 - c_trg[:, attr_index]
 
-
                 perturbed_image = x_real.clone().detach_() + torch.tensor(np.random.uniform(-self.noise_level, self.noise_level, x_real.shape).astype('float32')).to(self.device)
-
 
                 with torch.no_grad():
                     original_gen_image = attgan_model.G(x_real, c_trg, mode='enc-dec')
@@ -1045,81 +966,62 @@ class SolverRainbow(object):
                 for step in range(self.max_steps_per_episode):
                     frame_idx += 1
 
-
                     state, is_cached = self.get_state(perturbed_image, perturbed_gen_image)
 
-
                     action = self.rl_agent.select_action(state)
+                    action_idx = action.item() # Tensor를 int형으로 변환
 
-
-                    action_history.append(action.item())
+                    action_history.append(action_idx)
                     image_indices.append(test_img_idx)
                     attr_indices.append(idx)
                     step_indices.append(step)
 
+                    # 동적 Action 맵핑에서 현재 선택된 Action을 가져옵니다.
+                    selected_attack, current_noise = action_space[action_idx]
 
-                    if action == 0:
-
-                        perturbed_image, _ = attack_func.PGD(perturbed_image, original_gen_image, c_trg)
-
-                    elif action == 1:
-
-                        perturbed_image, _ = attack_func.perturb_frequency_domain(perturbed_image, original_gen_image, c_trg, freq_band='LOW')
-
-                    elif action == 2:
-
-                        perturbed_image, _ = attack_func.perturb_frequency_domain(perturbed_image, original_gen_image, c_trg, freq_band='MID')
-
-                    elif action == 3:
-
-                        perturbed_image, _ = attack_func.perturb_frequency_domain(perturbed_image, original_gen_image, c_trg, freq_band='HIGH')
-
+                    # 분기문을 확 줄여서 처리
+                    if selected_attack == 'PGD':
+                        perturbed_image, _ = attack_func.PGD(
+                            perturbed_image, original_gen_image, c_trg, 
+                            current_noise_level=current_noise
+                        )
                     else:
-                        raise ValueError("Invalid action index")
-
+                        perturbed_image, _ = attack_func.perturb_frequency_domain(
+                            perturbed_image, original_gen_image, c_trg, 
+                            freq_band=selected_attack, current_noise_level=current_noise
+                        )
 
                     with torch.no_grad():
                         perturbed_gen_image = attgan_model.G(perturbed_image, c_trg, mode='enc-dec')
 
-
                     reward, defense_l1_loss, defense_l2_loss, defense_lpips, invisibility_ssim, invisibility_psnr, invisibility_lpips = self.calculate_reward(original_gen_image, perturbed_gen_image, x_real, perturbed_image, c_trg)
-
 
                     if isinstance(reward, torch.Tensor):
                         total_reward_this_episode += reward.item()
                     else:
                         total_reward_this_episode += reward
 
-
                     reward_tensor = torch.tensor([reward], dtype=torch.float32).to(self.device)
-
 
                     next_state, _ = self.get_state(perturbed_image, perturbed_gen_image)
 
-
                     n_step_buffer_test_attack.append((state, action, reward_tensor, next_state, torch.tensor([False])))
-
 
                     if len(n_step_buffer_test_attack) == self.n_step:
                         state_n_step, action_n_step, reward_n_step, next_state_n_step, done_n_step = self._get_n_step_transition(n_step_buffer_test_attack)
                         self.memory.push(state_n_step, action_n_step, reward_n_step.unsqueeze(0), next_state_n_step, done_n_step)
 
-
                     if len(self.memory) >= 5:
-
                         batch, weights, indices = self.memory.sample(self.batch_size, frame_idx)
                         loss_val, priorities = self.rl_agent.update_model(batch, weights, indices, self.batch_size, frame_idx)
                         self.memory.update_priorities(indices, priorities)
-
 
                     self.rl_agent.reset_noise()
 
                 reward_per_episode.append(total_reward_this_episode)
 
-
                 analyzed_perturbation_array = analyze_perturbation(perturbed_image - x_real)
                 total_perturbation_map += analyzed_perturbation_array
-
 
                 with torch.no_grad():
                     remain_perturb_array = analyze_perturbation(perturbed_image - x_real)
@@ -1133,12 +1035,10 @@ class SolverRainbow(object):
 
                     results = calculate_and_save_metrics(original_gen_image, perturbed_gen_image_orig, "Original(No Transform)", results)
 
-
                 x_adv_jpeg = compress_jpeg(perturbed_image, quality=75)
                 with torch.no_grad():
                     remain_perturb_array = analyze_perturbation(x_adv_jpeg - x_real)
                     results["JPEG Compression"]["total_remain_map"] += remain_perturb_array
-
 
                     perturbed_gen_image_jpeg = attgan_model.G(x_adv_jpeg, c_trg, mode='enc-dec')
 
@@ -1148,12 +1048,10 @@ class SolverRainbow(object):
 
                     results = calculate_and_save_metrics(original_gen_image, perturbed_gen_image_jpeg, "JPEG Compression", results)
 
-
                 x_adv_denoise_opencv = denoise_opencv(perturbed_image)
                 with torch.no_grad():
                     remain_perturb_array = analyze_perturbation(x_adv_denoise_opencv - x_real)
                     results["OpenCV Denoise"]["total_remain_map"] += remain_perturb_array
-
 
                     perturbed_gen_image_opencv = attgan_model.G(x_adv_denoise_opencv, c_trg, mode='enc-dec')
 
@@ -1162,7 +1060,6 @@ class SolverRainbow(object):
                     opencv_result_list.append(perturbed_gen_image_opencv)
 
                     results = calculate_and_save_metrics(original_gen_image, perturbed_gen_image_opencv, "OpenCV Denoise", results)
-
 
                 x_adv_median = denoise_scikit(perturbed_image)
                 with torch.no_grad():
@@ -1177,12 +1074,10 @@ class SolverRainbow(object):
 
                     results = calculate_and_save_metrics(original_gen_image, perturbed_gen_image_median, "Median Smoothing", results)
 
-
                 x_real_padding, x_adv_padding = random_resize_padding(x_real, perturbed_image)
                 with torch.no_grad():
                     remain_perturb_array = analyze_perturbation(x_adv_padding - x_real_padding)
                     results["Resize and Pad"]["total_remain_map"] += remain_perturb_array
-
 
                     original_gen_image_padding = attgan_model.G(x_real_padding, c_trg, mode='enc-dec')
                     perturbed_gen_image_padding = attgan_model.G(x_adv_padding, c_trg, mode='enc-dec')
@@ -1192,7 +1087,6 @@ class SolverRainbow(object):
                     padding_result_list.append(perturbed_gen_image_padding)
 
                     results = calculate_and_save_metrics(original_gen_image_padding, perturbed_gen_image_padding, "Resize and Pad", results)
-
 
                 x_real_transforms, x_adv_transforms = random_image_transforms(x_real, perturbed_image)
                 with torch.no_grad():
@@ -1223,12 +1117,10 @@ class SolverRainbow(object):
 
                     episode += 1
 
-
                 if episode % self.target_update_interval == 0:
 
                     self.rl_agent.update_target_net()
                     self.rl_agent.reset_noise()
-
 
             all_result_lists = [noattack_result_list, jpeg_result_list, opencv_result_list, median_result_list, padding_result_list, transforms_result_list]
             row_images = []
@@ -1236,11 +1128,9 @@ class SolverRainbow(object):
                 row_concat = torch.cat(result_list, dim=3)
                 row_images.append(row_concat)
 
-
             spacing = 10
             blank_image = torch.ones_like(row_images[0][:, :, :spacing, :])
             blank_image = blank_image * 1.0
-
 
             vertical_concat_list = [row_images[0]]
 
@@ -1252,7 +1142,6 @@ class SolverRainbow(object):
             result_path = os.path.join(self.result_dir, '{}-images.jpg'.format(test_img_idx + 1))
             save_image(self.denorm(x_concat.data.cpu()), result_path, nrow=1, padding=0)
 
-
             checkpoint_path = os.path.join(self.model_save_dir, f'final_rainbow_dqn.pth')
             try:
                 torch.save({
@@ -1262,7 +1151,6 @@ class SolverRainbow(object):
                 print(f"[*] Saved Rainbow DQN agent weights and optimizer weights (episode {episode}) -> {checkpoint_path}")
             except Exception as e:
                 print(f"[!] Error saving Rainbow DQN weights and optimizer weights (episode {episode}): {e}")
-
 
             if test_img_idx >= (self.training_image_num - 1):
                 break
@@ -1276,9 +1164,28 @@ class SolverRainbow(object):
             save_reward_moving_average_txt(reward_per_episode, window_size=25, save_path=os.path.join(self.result_dir, "reward_moving_avg.txt"))
         except Exception as e:
             print(f"[WARN] save_reward_moving_average_txt failed but continuing: {e}")
+
         score = print_comprehensive_metrics(results, episode, total_invisible_psnr, total_invisible_ssim, total_invisible_lpips, combo_index=getattr(self.config, 'combo_index', None))
-        train_flag = True
-        visualize_actions(action_history, image_indices, attr_indices, step_indices, train_flag)
+
+        # 모든 에피소드가 끝난 후 시각화 함수를 호출하기 직전에 동적 액션 이름을 생성합니다.
+        # action_space는 우리가 이전 답변에서 itertools.product로 만든 변수입니다.
+        dynamic_action_names = []
+        for attack, noise in action_space:
+            if use_extended_noise:
+                # 노이즈 확장을 사용할 경우 이름에 노이즈 레벨 표시 (예: PGD(0.001), LOW(0.01))
+                dynamic_action_names.append(f"{attack}({noise})")
+            else:
+                # 주파수 확장만 사용할 경우 심플하게 표시
+                dynamic_action_names.append(f"{attack}")
+
+        visualize_actions(
+            action_history=action_history, 
+            image_indices=image_indices, 
+            attr_indices=attr_indices, 
+            step_indices=step_indices,
+            action_names=dynamic_action_names,
+            train_flag=True
+        )
 
 
         checkpoint_path = os.path.join(self.model_save_dir, f'final_rainbow_dqn.pth')

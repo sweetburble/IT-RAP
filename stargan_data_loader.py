@@ -141,7 +141,7 @@ def align_face(image: Image.Image, crop_size=178) -> Image.Image:
         return image.resize((crop_size, crop_size))
 
 
-    landmarks = max(preds, key=lambda x: x[:, 1].ptp())
+    landmarks = max(preds, key=lambda x: x[:, 1].max() - x[:, 1].min())
 
 
     x_min = max(int(np.min(landmarks[:, 0])) - 10, 0)

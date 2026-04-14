@@ -1,4 +1,3 @@
-import neptune
 import os
 import argparse
 from attgan_solver import SolverRainbow
@@ -19,10 +18,6 @@ def main(config):
 
     # For fast training
     cudnn.benchmark = True
-    run = neptune.init_run(
-        project=os.getenv("NEPTUNE_PROJECT"),
-        api_token=os.getenv("NEPTUNE_API_TOKEN"),
-    )
 
     if not os.path.exists(config.log_dir):
         os.makedirs(config.log_dir)
@@ -51,29 +46,20 @@ def main(config):
                                 config.celeba_crop_size, config.image_size, config.batch_size,
                                 'MAADFace', config.mode, config.num_workers, config.start_index)
 
-
-    solver = SolverRainbow(dataset_loader, config, run = run)
-    print("[NEPTUNE DEBUG] solver.run is None?:", solver.run is None)
-    print("[NEPTUNE DEBUG] solver.run obj:", getattr(solver, "run", None))
-    print("[NEPTUNE DEBUG] solver.run url (if available):", getattr(solver.run, "get_url", lambda: "no-get-url")())
-
+    solver = SolverRainbow(dataset_loader, config)
 
     if config.mode == 'train':
-        solver.train_attack()
-
+        solver.train_attack(use_extended_bands=False, use_extended_noise=True)
     elif config.mode == 'inference':
-
         checkpoint_path = os.path.join(config.model_save_dir, f'final_rainbow_dqn.pth')
         solver.load_rainbow_dqn_checkpoint(checkpoint_path)
 
         solver.restore_model(config.test_iters)
 
-        solver.inference_rainbow_dqn(dataset_loader, result_dir=config.result_dir)
-
+        solver.inference_rainbow_dqn(dataset_loader, result_dir=config.result_dir, use_extended_bands=False, use_extended_noise=True)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-
 
     parser.add_argument('--c_dim', type=int, default=5, help='dimension of domain labels (1st dataset)')
     parser.add_argument('--c2_dim', type=int, default=8, help='dimension of domain labels (2nd dataset)')

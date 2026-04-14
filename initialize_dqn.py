@@ -4,7 +4,7 @@ from stargan_solver import RainbowDQNNet
 
 
 state_dim = 1024
-action_dim = 4
+action_dim = 6
 atom_size = 11
 v_min = -5
 v_max = 5
@@ -21,6 +21,6 @@ checkpoint = {
 }
 
 
-save_path = "checkpoints/models/final_rainbow_dqn.pth"
+save_path = "stargan_celeba_256/models/final_rainbow_dqn.pth"
 torch.save(checkpoint, save_path)
 print(f"RL model initial weights saved: {save_path}")
